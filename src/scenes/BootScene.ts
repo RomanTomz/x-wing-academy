@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../art/textures';
 import { generateThemeTextures } from '../art/themes';
+import { generateBossTextures } from '../art/bosses';
 import { SCENES } from '../core/constants';
 
 /** Builds all procedural art, then opens the main menu. */
@@ -12,6 +13,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     generateTextures(this);
     generateThemeTextures(this);
+    generateBossTextures(this);
     this.scene.start(SCENES.menu);
   }
 }

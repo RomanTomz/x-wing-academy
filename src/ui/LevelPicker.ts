@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { THEME_TEX } from '../art/themes';
+import { placeIcon, THEME_TEX } from '../art/themes';
 import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../core/constants';
 import { speech, store } from '../core/services';
 import type { InputController } from '../input/InputController';
@@ -28,7 +28,7 @@ export function createLevelPicker(
     c.add(scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000814, 0.75).setOrigin(0).setInteractive());
   }
   c.add(panel(scene, cx, 370, 780, 560, accent, 0.95));
-  c.add(scene.add.image(cx - 300, 160, THEME_TEX.planet(planet.theme)).setScale(1.3));
+  c.add(scene.add.image(cx - 300, 160, placeIcon(planet)).setScale(1.3));
   c.add(pixelText(scene, cx + 40, 140, planet.name.toUpperCase(), 28, COLORS.textGold));
   c.add(roundText(scene, cx + 40, 186, 'Choose your level', 26, COLORS.textDim));
 

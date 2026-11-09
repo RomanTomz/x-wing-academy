@@ -8,7 +8,7 @@ import type { MissionResult } from '../persistence/gameStore';
 import { rankForXp } from '../progression/xp';
 import type { Unlock } from '../progression/unlocks';
 import { Starfield } from '../ui/Starfield';
-import { THEME_TEX } from '../art/themes';
+import { placeIcon, THEME_TEX } from '../art/themes';
 import { isMissionConfig, LEVEL_NAMES, LEVELS, planetById, QUICK_MISSION, type MissionConfig, type Planet } from '../progression/campaign';
 import { REGISTRY } from './GalaxyMapScene';
 import { Button, MenuNav, panel, pixelText, roundText } from '../ui/widgets';
@@ -48,7 +48,8 @@ export class CompleteScene extends Phaser.Scene {
     const { stats, result } = data;
     this.config = isMissionConfig(data.config) ? data.config : QUICK_MISSION;
     const planet = this.config.mode === 'campaign' ? planetById(this.config.planetId) : undefined;
-    if (result.planetUnlocked) this.registry.set(REGISTRY.justUnlocked, result.planetUnlocked.id);
+    const opened = [result.planetUnlocked?.id, result.bossUnlocked?.id].filter((id): id is NonNullable<typeof id> => id !== undefined);
+    if (opened.length > 0) this.registry.set(REGISTRY.justUnlocked, opened);
     const name = store.settings.pilotName;
 
     this.fireworks = this.add.particles(0, 0, TEX.spark, {
@@ -124,14 +125,18 @@ export class CompleteScene extends Phaser.Scene {
 
     // Reveals, one after another so cards never overlap.
     let at = 3200;
-    const reward = result.newUnlocks[0];
-    if (reward) {
+    for (const reward of result.newUnlocks) {
       this.time.delayedCall(at, () => this.revealUnlock(reward));
       at += 3600;
     }
     const newPlanet = result.planetUnlocked;
     if (newPlanet) {
       this.time.delayedCall(at, () => this.revealPlanet(newPlanet));
+      at += 3600;
+    }
+    const newBoss = result.bossUnlocked;
+    if (newBoss) {
+      this.time.delayedCall(at, () => this.revealPlanet(newBoss));
       at += 3600;
     }
 
@@ -218,8 +223,15 @@ export class CompleteScene extends Phaser.Scene {
   }
 
   private revealPlanet(p: Planet): void {
-    this.showCard('NEW PLANET!', 0x7fe8ff, this.add.image(0, -10, THEME_TEX.planet(p.theme)).setScale(2.4), p.name, `${p.focus} — find it on the Galaxy Map!`);
-    speech.speak(`New planet unlocked! ${p.name}!`, { interrupt: false });
+    const boss = p.kind === 'boss';
+    this.showCard(
+      boss ? 'BOSS BATTLE UNLOCKED!' : 'NEW PLANET!',
+      boss ? 0xff4a4a : 0x7fe8ff,
+      this.add.image(0, -10, placeIcon(p)).setScale(boss ? 2.6 : 2.4),
+      p.name,
+      `${p.focus} — find it on the Galaxy Map!`,
+    );
+    speech.speak(`${boss ? 'Boss battle unlocked' : 'New planet unlocked'}! ${p.name}!`, { interrupt: false });
   }
 
   private revealUnlock(u: Unlock): void {

@@ -119,7 +119,7 @@ describe('unlocks', () => {
 
   it('unlock ids are unique and starters are free', () => {
     expect(new Set(UNLOCKS.map((u) => u.id)).size).toBe(UNLOCKS.length);
-    expect(UNLOCKS.filter((u) => u.missions === 0).map((u) => u.kind).sort()).toEqual(['laser', 'paint', 'ship', 'ship', 'ship', 'trail']);
+    expect(UNLOCKS.filter((u) => u.missions === 0 && !u.boss).map((u) => u.kind).sort()).toEqual(['laser', 'paint', 'ship', 'ship', 'ship', 'trail']);
   });
 
   it('first mission unlocks the droid buddy', () => {

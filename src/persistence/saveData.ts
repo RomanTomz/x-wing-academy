@@ -2,7 +2,7 @@ import { clampStage } from '../education/stages';
 import { ALL_TOPICS, type TopicId } from '../education/types';
 import { defaultSettings, sanitizeSettings, type ParentSettings } from '../settings/settings';
 import { isUnlocked, unlockById, type UnlockKind } from '../progression/unlocks';
-import { ALL_PLANETS, defaultCampaign, type CampaignProgress } from '../progression/campaign';
+import { ALL_PLANETS, beatenBosses, defaultCampaign, type CampaignProgress } from '../progression/campaign';
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'xwing-academy.save';
@@ -82,17 +82,17 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const count = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
 const isTopic = (v: unknown): v is TopicId => typeof v === 'string' && (ALL_TOPICS as readonly string[]).includes(v);
 
-function sanitizeEquipped(raw: unknown, missions: number): Equipped {
+function sanitizeEquipped(raw: unknown, missions: number, beaten: ReadonlySet<string>): Equipped {
   const d = defaultProfile().equipped;
   if (!isRecord(raw)) return d;
   const pick = (id: unknown, kind: UnlockKind, fallback: string): string =>
-    typeof id === 'string' && unlockById(id)?.kind === kind && isUnlocked(id, missions) ? id : fallback;
+    typeof id === 'string' && unlockById(id)?.kind === kind && isUnlocked(id, missions, beaten) ? id : fallback;
   return {
     ship: pick(raw.ship, 'ship', d.ship),
     paint: pick(raw.paint, 'paint', d.paint),
     laser: pick(raw.laser, 'laser', d.laser),
     trail: pick(raw.trail, 'trail', d.trail),
-    droid: raw.droid === true && isUnlocked('droid-bip', missions),
+    droid: raw.droid === true && isUnlocked('droid-bip', missions, beaten),
   };
 }
 
@@ -112,6 +112,7 @@ function sanitizeProfile(raw: unknown): Profile {
   const d = defaultProfile();
   if (!isRecord(raw)) return d;
   const missionsCompleted = count(raw.missionsCompleted);
+  const campaign = sanitizeCampaign(raw.campaign);
   return {
     totalXp: count(raw.totalXp),
     missionsCompleted,
@@ -120,8 +121,8 @@ function sanitizeProfile(raw: unknown): Profile {
       ? raw.adaptiveRecent.filter((r): r is boolean => typeof r === 'boolean').slice(-10)
       : [],
     sinceChange: count(raw.sinceChange),
-    equipped: sanitizeEquipped(raw.equipped, missionsCompleted),
-    campaign: sanitizeCampaign(raw.campaign),
+    equipped: sanitizeEquipped(raw.equipped, missionsCompleted, beatenBosses(campaign)),
+    campaign,
   };
 }
 

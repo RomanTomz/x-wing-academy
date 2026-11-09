@@ -54,9 +54,10 @@ export class Mission {
   private finished = false;
   private stats = { completed: 0, firstTry: 0, attempts: 0, crystals: 0, asteroids: 0 };
 
-  constructor(totalQuestions: number) {
+  /** `interludes: false` for boss battles, which are one continuous fight. */
+  constructor(totalQuestions: number, opts: { interludes?: boolean } = {}) {
     this.totalQuestions = Math.max(1, Math.floor(totalQuestions));
-    this.interludes = interludeSchedule(this.totalQuestions);
+    this.interludes = opts.interludes === false ? [] : interludeSchedule(this.totalQuestions);
   }
 
   get currentQuestion(): number {

@@ -36,6 +36,7 @@ export class Speech {
       const spoken = text
         .replace(/−/g, ' minus ')
         .replace(/×/g, ' times ')
+        .replace(/÷/g, ' divided by ')
         .replace(/</g, ' less than ')
         .replace(/>/g, ' greater than ')
         .replace(/½/g, ' a half ')

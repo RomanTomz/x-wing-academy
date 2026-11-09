@@ -4,7 +4,7 @@ import { COLORS, FONTS, GAME_WIDTH, SCENES } from '../core/constants';
 import { audio, speech, store } from '../core/services';
 import { InputController } from '../input/InputController';
 import { Starfield } from '../ui/Starfield';
-import { THEME_TEX } from '../art/themes';
+import { placeIcon } from '../art/themes';
 import { isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type MissionConfig } from '../progression/campaign';
 import { Button, MenuNav, pixelText } from '../ui/widgets';
 
@@ -46,7 +46,7 @@ export class BriefingScene extends Phaser.Scene {
     const planet = this.config.mode === 'campaign' ? planetById(this.config.planetId) : undefined;
     this.starfield = new Starfield(this, { planet: !planet });
     if (planet) {
-      const big = this.add.image(GAME_WIDTH - 230, 230, THEME_TEX.planet(planet.theme)).setScale(5).setDepth(0).setAlpha(0);
+      const big = this.add.image(GAME_WIDTH - 230, 230, placeIcon(planet)).setScale(5).setDepth(0).setAlpha(0);
       this.tweens.add({ targets: big, alpha: 1, x: GAME_WIDTH - 260, duration: 2500, ease: 'Sine.easeOut' });
       this.tweens.add({ targets: big, angle: 6, duration: 9000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }

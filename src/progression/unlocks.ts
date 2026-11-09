@@ -13,6 +13,8 @@ export interface Unlock {
   accent?: number;
   /** Short description (ships). */
   blurb?: string;
+  /** Earned by beating this boss (at any level) instead of by mission count. */
+  boss?: string;
 }
 
 /**
@@ -38,15 +40,28 @@ export const UNLOCKS: readonly Unlock[] = [
   { id: 'paint-green', kind: 'paint', name: 'Forest Moon Green', missions: 8, color: 0x3fbf5a, accent: 0x1f6b30 },
   { id: 'trail-comet', kind: 'trail', name: 'Comet Fire Engines', missions: 9, color: 0xff6a2a },
   { id: 'paint-gold', kind: 'paint', name: 'Gold Leader', missions: 10, color: 0xf2c230, accent: 0x9a7412 },
+
+  // Boss trophies.
+  { id: 'paint-destroyer', kind: 'paint', name: 'Destroyer Hunter', missions: 0, boss: 'star-destroyer', color: 0x3fd46a, accent: 0x1c7a36 },
 ];
 
 export function unlockById(id: string): Unlock | undefined {
   return UNLOCKS.find((u) => u.id === id);
 }
 
-export function isUnlocked(id: string, missionsCompleted: number): boolean {
+/** Boss ids that have been beaten (any level). */
+export type BeatenBosses = ReadonlySet<string>;
+
+export function isUnlocked(id: string, missionsCompleted: number, beaten: BeatenBosses = new Set()): boolean {
   const u = unlockById(id);
-  return u !== undefined && missionsCompleted >= u.missions;
+  if (!u) return false;
+  if (u.boss) return beaten.has(u.boss);
+  return missionsCompleted >= u.missions;
+}
+
+/** Rewards for beating a boss for the first time. */
+export function bossRewards(bossId: string): Unlock[] {
+  return UNLOCKS.filter((u) => u.boss === bossId);
 }
 
 export function unlocksOfKind(kind: UnlockKind): Unlock[] {
@@ -55,10 +70,10 @@ export function unlocksOfKind(kind: UnlockKind): Unlock[] {
 
 /** Rewards earned by going from `before` to `after` completed missions. */
 export function newlyUnlocked(before: number, after: number): Unlock[] {
-  return UNLOCKS.filter((u) => u.missions > before && u.missions <= after);
+  return UNLOCKS.filter((u) => !u.boss && u.missions > before && u.missions <= after);
 }
 
 /** The next reward still to earn, if any. */
 export function nextUnlock(missionsCompleted: number): Unlock | null {
-  return UNLOCKS.find((u) => u.missions > missionsCompleted) ?? null;
+  return UNLOCKS.find((u) => !u.boss && u.missions > missionsCompleted) ?? null;
 }

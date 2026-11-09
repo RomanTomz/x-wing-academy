@@ -13,9 +13,11 @@ export type TopicId =
   | 'compare'
   | 'place-value'
   | 'fractions'
-  | 'odd-even';
+  | 'odd-even'
+  // Boss topics.
+  | 'times-divide';
 
-export type Operator = '+' | '-' | '×';
+export type Operator = '+' | '-' | '×' | '÷';
 
 /** Structured description of a problem, so correctness can be re-verified independently of display text. */
 export type Problem =
@@ -92,6 +94,7 @@ export const TOPIC_NAMES: Record<TopicId, string> = {
   'place-value': 'Tens and ones',
   fractions: 'Halves, quarters, thirds & doubles',
   'odd-even': 'Odd and even',
+  'times-divide': '× and ÷ facts (2, 5, 10)',
 };
 
 export const ALL_TOPICS: readonly TopicId[] = [
@@ -107,4 +110,5 @@ export const ALL_TOPICS: readonly TopicId[] = [
   'place-value',
   'fractions',
   'odd-even',
+  'times-divide',
 ];

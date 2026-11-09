@@ -16,8 +16,9 @@ import { createBackdrop, type Backdrop } from '../ui/Scenery';
 import { THEMES, type Theme } from '../art/themes';
 import { applyResult, boundsFor, type AdaptiveState } from '../education/difficulty';
 import { firstStageOfTier } from '../education/stages';
-import { isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type MissionConfig, type Planet } from '../progression/campaign';
+import { BOSS_HITS, isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type MissionConfig, type Planet } from '../progression/campaign';
 import { Interlude } from './mission/Interlude';
+import { StarDestroyerBattle } from './mission/StarDestroyerBattle';
 
 type Phase = 'intro' | 'active' | 'resolving' | 'interlude' | 'complete';
 
@@ -53,6 +54,7 @@ export class MissionScene extends Phaser.Scene {
   private recentDisplays: string[] = [];
   private rng!: Rng;
   private interlude: Interlude | null = null;
+  private boss: StarDestroyerBattle | null = null;
   private streak = 0;
   private missionXp = 0;
 
@@ -79,7 +81,10 @@ export class MissionScene extends Phaser.Scene {
     this.missionXp = 0;
     this.droid = null;
     this.rng = createRng(Date.now());
-    this.mission = new Mission(store.settings.missionLength);
+    const isBoss = this.planet?.kind === 'boss';
+    this.boss = null;
+    // Boss battles are one continuous fight with a fixed number of hits.
+    this.mission = isBoss ? new Mission(BOSS_HITS, { interludes: false }) : new Mission(store.settings.missionLength);
 
     this.starfield = createBackdrop(this, this.planet?.theme ?? 'space');
     this.fx = new Effects(this);
@@ -91,12 +96,13 @@ export class MissionScene extends Phaser.Scene {
 
     const equipped = store.data.profile.equipped;
     this.player = new Player(this, GAME_WIDTH / 2, GAME_HEIGHT + 120, equipped, {
-      groundShadow: this.planet !== null,
+      groundShadow: this.planet !== null && !isBoss,
       craft: this.planet?.faction === 'empire' ? 'tie' : undefined,
     });
     this.player.canFire = false;
     this.player.minY = DURING_QUESTION_MIN_Y;
     if (equipped.droid) this.droid = new Droid(this, GAME_WIDTH / 2 - 100, GAME_HEIGHT + 100);
+    if (isBoss) this.boss = new StarDestroyerBattle(this, this.fx, this.player, BOSS_HITS);
 
     this.input2 = new InputController(this);
     this.input2.pointerSteer = true;
@@ -122,7 +128,8 @@ export class MissionScene extends Phaser.Scene {
       onComplete: () => {
         this.player.canFire = true;
         this.hud.say(`Good luck, Pilot ${store.settings.pilotName}!`);
-        this.time.delayedCall(700, () => this.next());
+        if (this.boss) this.boss.intro(() => this.next());
+        else this.time.delayedCall(700, () => this.next());
       },
     });
   }
@@ -132,6 +139,7 @@ export class MissionScene extends Phaser.Scene {
     this.game.events.off(Phaser.Core.Events.HIDDEN, this.onBlur, this);
     this.interlude?.destroy();
     this.interlude = null;
+    this.boss?.destroy();
     speech.cancel();
     audio.setEngine(-1);
   }
@@ -184,18 +192,19 @@ export class MissionScene extends Phaser.Scene {
     speech.speak(q.spoken);
 
     const patterns = this.rng.shuffle(PATTERNS);
+    const slots = this.boss?.slots();
     this.enemies = q.options.map(
       (value, i) =>
         new Enemy(this, {
           value,
           label: q.optionLabels[i],
           isCorrect: value === q.answer,
-          homeX: LANES[i],
-          homeY: 268 + this.rng.int(-6, 10),
-          pattern: patterns[i],
+          homeX: slots ? slots[i].x : LANES[i],
+          homeY: slots ? slots[i].y : 268 + this.rng.int(-6, 10),
+          pattern: slots ? 'fixed' : patterns[i],
           delay: i * 160,
-          groundShadow: this.planet !== null,
-          look: this.planet?.faction === 'empire' ? 'xwing' : 'tie',
+          groundShadow: this.planet !== null && !slots,
+          look: slots ? 'turret' : this.planet?.faction === 'empire' ? 'xwing' : 'tie',
         }),
     );
     audio.play('whoosh');
@@ -245,14 +254,25 @@ export class MissionScene extends Phaser.Scene {
 
   private finish(): void {
     this.phase = 'complete';
+    this.player.canFire = false;
+    if (this.boss) {
+      this.hud.setBanner('Victory!', `${this.planet?.name ?? 'Boss'} down!`);
+      this.hud.clearHint();
+      this.boss.finale(() => this.wrapUp());
+    }
+    else this.wrapUp();
+  }
+
+  private wrapUp(): void {
     this.hud.setProgress(this.mission.totalQuestions, this.mission.totalQuestions, 0);
     const stats = this.mission.getStats();
     const result = store.completeMission(
       stats.xpEarned,
       this.config.mode === 'campaign' ? { planetId: this.config.planetId, level: this.config.level } : undefined,
     );
-    this.hud.setBanner('Mission complete', 'The fleet is safe!');
-    speech.speak('Mission complete! The fleet is safe!');
+    const won = this.boss ? `${this.planet?.name ?? 'Boss'} defeated!` : 'The fleet is safe!';
+    this.hud.setBanner('Mission complete', won);
+    speech.speak(`Mission complete! ${won}`, { interrupt: !this.boss });
     this.player.canFire = false;
     this.player.roll();
     this.time.delayedCall(900, () => {
@@ -292,7 +312,8 @@ export class MissionScene extends Phaser.Scene {
     this.phase = 'resolving';
     const q = this.question;
     this.streak = result.firstTry ? this.streak + 1 : 0;
-    this.fx.explosion(enemy.x, enemy.y, 1.2);
+    this.fx.explosion(enemy.x, enemy.y, this.boss ? 1.6 : 1.2);
+    this.boss?.onTurretDestroyed(enemy.x, enemy.y);
     enemy.kill();
     audio.play('explosion');
     audio.play('correct');
@@ -382,6 +403,7 @@ export class MissionScene extends Phaser.Scene {
     this.updateLockOn();
     this.interlude?.update(dt);
     this.interlude?.syncGlows();
+    this.boss?.update(dt, this.enemies, this.phase === 'active');
     this.hud.update(dt);
   }
 }

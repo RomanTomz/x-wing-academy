@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { ThemeId } from '../progression/campaign';
+import type { Planet, ThemeId } from '../progression/campaign';
 import { duneTerrain, forestTerrain, frostTerrain, hullTerrain, moonTerrain, planetSprite, starGrid, stationSprite } from './terrain';
 
 export const THEME_TEX = {
@@ -7,6 +7,11 @@ export const THEME_TEX = {
   planet: (t: ThemeId) => `planet-${t}`,
   star: 'star',
 } as const;
+
+/** Picture for a place on the map, picker and briefing: a planet, or the boss itself. */
+export function placeIcon(p: Planet): string {
+  return p.kind === 'boss' ? `boss-icon-${p.id}` : THEME_TEX.planet(p.theme as ThemeId);
+}
 
 export interface Theme {
   id: ThemeId | 'space';

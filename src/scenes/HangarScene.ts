@@ -3,7 +3,8 @@ import { PIXEL_SCALE, shipTexture, TEX } from '../art/textures';
 import { COLORS, FONTS, GAME_WIDTH, SCENES } from '../core/constants';
 import { audio, store } from '../core/services';
 import { InputController } from '../input/InputController';
-import { isUnlocked, unlocksOfKind, type Unlock, type UnlockKind } from '../progression/unlocks';
+import { unlocksOfKind, type Unlock, type UnlockKind } from '../progression/unlocks';
+import { planetById } from '../progression/campaign';
 import { Starfield } from '../ui/Starfield';
 import { CRAFT, craftFor } from '../entities/Player';
 import { Button, panel, pixelText, roundText } from '../ui/widgets';
@@ -73,9 +74,9 @@ export class HangarScene extends Phaser.Scene {
     // Option grid.
     ROWS.forEach((r, ri) => {
       const y = 150 + ri * 112;
-      this.add.text(560, y - 60, r.label, { fontFamily: FONTS.pixel, fontSize: '12px', color: COLORS.textDim });
+      this.add.text(540, y - 60, r.label, { fontFamily: FONTS.pixel, fontSize: '12px', color: COLORS.textDim });
       const items = unlocksOfKind(r.kind);
-      const rowSlots: Slot[] = items.map((u, ci) => this.makeSlot(u, 600 + ci * 100, y + 6, ri, ci));
+      const rowSlots: Slot[] = items.map((u, ci) => this.makeSlot(u, 582 + ci * 92, y + 6, ri, ci));
       this.slots.push(rowSlots);
     });
 
@@ -86,8 +87,7 @@ export class HangarScene extends Phaser.Scene {
   }
 
   private makeSlot(u: Unlock, x: number, y: number, ri: number, ci: number): Slot {
-    const missions = store.data.profile.missionsCompleted;
-    const unlocked = isUnlocked(u.id, missions);
+    const unlocked = store.isRewardUnlocked(u.id);
     const frame = this.add.graphics();
     const parts: Phaser.GameObjects.GameObject[] = [frame];
     let icon: Phaser.GameObjects.Image | undefined;
@@ -109,7 +109,7 @@ export class HangarScene extends Phaser.Scene {
       }
     } else {
       parts.push(this.add.image(0, -8, TEX.lock).setScale(3));
-      parts.push(this.add.text(0, 26, `Mission ${u.missions}`, { fontFamily: FONTS.round, fontStyle: '600', fontSize: '15px', color: COLORS.textDim }).setOrigin(0.5));
+      parts.push(this.add.text(0, 26, u.boss ? 'Boss prize' : `Mission ${u.missions}`, { fontFamily: FONTS.round, fontStyle: '600', fontSize: '15px', color: COLORS.textDim }).setOrigin(0.5));
     }
     const box = this.add.container(x, y, parts).setSize(88, 88).setInteractive({ useHandCursor: true });
     box.on('pointerover', () => {
@@ -129,7 +129,7 @@ export class HangarScene extends Phaser.Scene {
         const focused = ri === this.row && ci === this.col;
         const u = s.unlock;
         const equipped = u.kind === 'droid' ? eq.droid : eq[u.kind] === u.id;
-        const unlocked = isUnlocked(u.id, missions);
+        const unlocked = store.isRewardUnlocked(u.id);
         const g = s.frame;
         g.clear();
         g.fillStyle(equipped ? 0x16405e : COLORS.panel, unlocked ? 0.95 : 0.6);
@@ -141,7 +141,7 @@ export class HangarScene extends Phaser.Scene {
     );
     const focused = this.slots[this.row]?.[this.col]?.unlock;
     if (focused) {
-      const unlocked = isUnlocked(focused.id, missions);
+      const unlocked = store.isRewardUnlocked(focused.id);
       const left = focused.missions - missions;
       this.info.setText(
         unlocked
@@ -150,7 +150,9 @@ export class HangarScene extends Phaser.Scene {
             : focused.blurb
               ? `${focused.name}: ${focused.blurb}`
               : focused.name
-          : `${focused.name} — fly ${left} more mission${left === 1 ? '' : 's'}!`,
+          : focused.boss
+            ? `${focused.name} — beat the ${planetById(focused.boss)?.name ?? 'boss'} to win it!`
+            : `${focused.name} — fly ${left} more mission${left === 1 ? '' : 's'}!`,
       );
     }
     this.preview.setTexture(shipTexture(eq));
@@ -179,7 +181,7 @@ export class HangarScene extends Phaser.Scene {
   private choose(): void {
     const s = this.slots[this.row]?.[this.col];
     if (!s) return;
-    if (!isUnlocked(s.unlock.id, store.data.profile.missionsCompleted)) {
+    if (!store.isRewardUnlocked(s.unlock.id)) {
       audio.play('bump');
       this.tweens.add({ targets: s.box, x: s.box.x + 6, duration: 50, yoyo: true, repeat: 2 });
       return;

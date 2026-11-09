@@ -60,6 +60,16 @@ Each planet practises one Year 2 skill and has its own scenery, weather and musi
 
 **Quick Mission** on the title screen is the original mixed-practice mission in open space. It uses the parent's topic choices and the adaptive ladder.
 
+### Boss battles
+
+Boss battles sit on the map between planets. A boss opens once the planet before it has been won, and it never blocks the next planet. Each boss is one continuous fight against a giant enemy with its own Year 2 topic:
+
+| Boss | Opens after | Maths | How it plays |
+| --- | --- | --- | --- |
+| **Star Destroyer** | Training Moon | × and ÷ facts for 2, 5 and 10 (Cadet: ×2 and ×10 · Pilot: × and ÷ · Ace: `? × 5 = 35`, "How many 5s in 30?") | Fly over its deck. Turbolaser turrets rise carrying answers, and 7 right answers bring it down in a chain of explosions. Its slow green bolts only nudge your ship |
+
+Beating a boss (any level) wins a special prize, such as the **Destroyer Hunter** paint for the Star Destroyer. More bosses (AT-AT walkers on Hoth, a trench run, and three TIE Academy bosses) are on the roadmap.
+
 ### TIE Academy (fly for the other side)
 
 Pick **TIE ACADEMY** on the title screen to fly a TIE fighter. X-wings carry the answers, you fly over a space-station hull, and the maths covers different Year 2 topics. It's always open and has its own Cadet / Pilot / Ace stars (numbers to 20 / 50 / 100):
@@ -133,9 +143,9 @@ src/
   input/                  Keyboard + mouse + Gamepad API → game actions
   art/                    Procedural pixel art (PixelGrid rasteriser), tileable planet terrain, themes
   entities/               Player, Enemy, Droid
-  scenes/                 Boot, Menu, GalaxyMap (+ level picker), Briefing, Mission (+ Interlude), Pause, Complete, Hangar
+  scenes/                 Boot, Menu, GalaxyMap, TieAcademy, Briefing, Mission (+ Interlude, StarDestroyerBattle), Pause, Complete, Hangar
   ui/                     HUD, buttons and menu navigation, effects, starfield, parent panel (HTML)
-tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign
+tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign, TIE Academy, bosses
 ```
 
 The folders marked PURE never import Phaser, so they run in Node and are fully unit-tested. Randomness comes from an injectable seeded RNG.
@@ -154,6 +164,7 @@ All art is generated at start-up from code: ships are drawn as polygons onto a l
 
 Ideas for future missions (not built yet):
 
+0. **More boss battles**: AT-AT walkers on Hoth (money, flying a snowspeeder), a trench run (telling the time), and TIE Academy bosses: Rebel Frigate (2D/3D shapes), Rebel Ice Base (measurement), Corvette Chase (tally charts & pictograms).
 0. **Galaxy Map Phase 2–3**: Cloud City (×2/×5/×10), Crystal Nebula (tens & ones, comparing numbers), and an Enemy Battle Station boss fight.
 1. **Battle station phonics infiltration**: sneak through corridors by blasting the right letter sounds and blends.
 2. **Jedi logic training**: lightsaber-deflect patterns, sequences and odd-one-out puzzles.

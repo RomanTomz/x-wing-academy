@@ -1,8 +1,8 @@
 import { applyResult, boundsFor, clampToBounds, type DifficultyChange } from '../education/difficulty';
 import { firstStageOfTier } from '../education/stages';
 import type { TopicId } from '../education/types';
-import { newlyUnlocked, isUnlocked, unlockById, type Unlock } from '../progression/unlocks';
-import { isPlanetUnlocked, PLANETS, planetIndex, type Level, type Planet, type PlanetId } from '../progression/campaign';
+import { bossRewards, newlyUnlocked, isUnlocked, unlockById, type Unlock } from '../progression/unlocks';
+import { BOSSES, beatenBosses, isPlanetUnlocked, planetById, PLANETS, planetIndex, starsFor, type Level, type Planet, type PlanetId } from '../progression/campaign';
 import { rankForXp, type Rank } from '../progression/xp';
 import { sanitizeSettings, type ParentSettings } from '../settings/settings';
 import { BACKUP_KEY, defaultProfile, defaultSave, defaultStats, LIMITS, parseSave, SAVE_KEY, type SaveData } from './saveData';
@@ -50,6 +50,8 @@ export interface MissionResult {
   newStar: boolean;
   /** Campaign only: a planet opened up by this mission. */
   planetUnlocked: Planet | null;
+  /** Campaign only: a boss battle opened up by this mission. */
+  bossUnlocked: Planet | null;
 }
 
 export interface CampaignClear {
@@ -149,6 +151,12 @@ export class GameStore {
     this.state.stats.stageHistory = [...h, { stage: this.state.profile.stage, at: this.now() }].slice(-LIMITS.stageHistory);
   }
 
+  /** Is a hangar item available (by missions flown, or by beating its boss)? */
+  isRewardUnlocked(id: string): boolean {
+    const p = this.state.profile;
+    return isUnlocked(id, p.missionsCompleted, beatenBosses(p.campaign));
+  }
+
   isPlanetUnlocked(id: PlanetId): boolean {
     return isPlanetUnlocked(this.state.profile.campaign, id, this.state.settings.unlockAllPlanets);
   }
@@ -157,7 +165,12 @@ export class GameStore {
     const p = this.state.profile;
     let newStar = false;
     let planetUnlocked: Planet | null = null;
+    let bossUnlocked: Planet | null = null;
+    const bossRewardsEarned: Unlock[] = [];
     if (campaign) {
+      const place = planetById(campaign.planetId);
+      const firstStarHere = starsFor(p.campaign, campaign.planetId) === 0;
+      const bossesBefore = BOSSES.filter((b) => isPlanetUnlocked(p.campaign, b.id, false)).map((b) => b.id);
       // Only galaxy-map planets unlock a next planet (the TIE Academy isn't on the map).
       const index = planetIndex(campaign.planetId);
       const next = index >= 0 ? PLANETS[index + 1] : undefined;
@@ -166,13 +179,15 @@ export class GameStore {
       newStar = !cleared[campaign.level - 1];
       cleared[campaign.level - 1] = true;
       if (next && !nextWasOpen && isPlanetUnlocked(p.campaign, next.id, false)) planetUnlocked = next;
+      bossUnlocked = BOSSES.find((b) => !bossesBefore.includes(b.id) && isPlanetUnlocked(p.campaign, b.id, false)) ?? null;
+      if (place?.kind === 'boss' && firstStarHere) bossRewardsEarned.push(...bossRewards(place.id));
     }
     const before = p.missionsCompleted;
     const rankBefore = rankForXp(p.totalXp);
     p.totalXp += Math.max(0, Math.floor(xpEarned));
     p.missionsCompleted++;
     const rankAfter = rankForXp(p.totalXp);
-    const newUnlocks = newlyUnlocked(before, p.missionsCompleted);
+    const newUnlocks = [...newlyUnlocked(before, p.missionsCompleted), ...bossRewardsEarned];
     // Auto-equip the droid the moment it is earned — it's the first big surprise.
     if (newUnlocks.some((u) => u.kind === 'droid')) p.equipped.droid = true;
     this.save();
@@ -184,13 +199,14 @@ export class GameStore {
       rankUp: rankAfter.index > rankBefore.index,
       newStar,
       planetUnlocked,
+      bossUnlocked,
     };
   }
 
   equip(id: string): boolean {
     const u = unlockById(id);
     const p = this.state.profile;
-    if (!u || !isUnlocked(id, p.missionsCompleted)) return false;
+    if (!u || !this.isRewardUnlocked(id)) return false;
     if (u.kind === 'droid') p.equipped.droid = !p.equipped.droid;
     else p.equipped[u.kind] = id;
     this.save();

@@ -37,6 +37,7 @@ const near = (n: number, step = 1): number[] => [n + step, n - step, n + 2 * ste
 function opWord(op: string): string {
   if (op === '+') return 'plus';
   if (op === '×') return 'times';
+  if (op === '÷') return 'divided by';
   return 'take away';
 }
 
@@ -65,7 +66,7 @@ const recognition: TopicGenerator = (rng, p) => {
 function equationDraft(
   topic: TopicId,
   a: number,
-  op: '+' | '-' | '×',
+  op: '+' | '-' | '×' | '÷',
   b: number,
   missing: 'a' | 'b' | 'result',
   instruction: string,
@@ -73,7 +74,7 @@ function equationDraft(
   mistakes: (number | null)[],
   ceiling: number,
 ): Draft {
-  const result = op === '+' ? a + b : op === '-' ? a - b : a * b;
+  const result = op === '+' ? a + b : op === '-' ? a - b : op === '÷' ? a / b : a * b;
   const answer = missing === 'a' ? a : missing === 'b' ? b : result;
   const show = (part: 'a' | 'b' | 'result', v: number): string => (missing === part ? '?' : String(v));
   const say = (part: 'a' | 'b' | 'result', v: number): string => (missing === part ? 'what' : String(v));
@@ -269,6 +270,45 @@ const twoStep: TopicGenerator = (rng, p) => {
     mistakes: [first, opposite, answer + 10, answer - 10],
     near: near(answer),
     ceiling: limit + 20,
+  };
+};
+
+// ---------------------------------------------------------------- Boss topics
+
+/**
+ * Multiplication and division facts for the 2, 5 and 10 times tables (Year 2).
+ * Cadet: ×2 and ×10. Pilot: all three tables with ÷. Ace: missing factors too.
+ */
+const timesDivide: TopicGenerator = (rng, p) => {
+  const tables = p.tier === 1 ? [2, 10] : [2, 5, 10];
+  const t = rng.pick(tables);
+  const f = rng.int(p.tier === 1 ? 1 : 2, p.tier === 3 ? 12 : 10);
+  const product = t * f;
+  const forms = p.tier === 1 ? ['times'] : p.tier === 2 ? ['times', 'divide', 'divide'] : ['divide', 'missing', 'missing', 'groups'];
+  const form = rng.pick(forms);
+  // Neighbouring multiples (one group too many / few) are the classic slip, plus adding instead.
+  const timesMistakes = [t * (f + 1), t * (f - 1), t + f];
+  if (form === 'times') {
+    const [a, b] = rng.chance(0.5) ? [f, t] : [t, f];
+    return equationDraft('times-divide', a, '×', b, 'result', 'What is…', `Count in ${t}s, ${f} times.`, timesMistakes, t * 13);
+  }
+  if (form === 'divide') {
+    return equationDraft(
+      'times-divide', product, '÷', t, 'result', 'Share it out!',
+      `How many ${t}s make ${product}? Count in ${t}s until you reach ${product}.`,
+      [f + 1, f - 1, product - t, t],
+      t * 13,
+    );
+  }
+  if (form === 'missing') {
+    const [a, b, missing] = rng.chance(0.5) ? [f, t, 'a' as const] : [t, f, 'b' as const];
+    return equationDraft('times-divide', a, '×', b, missing, 'Find the missing number', `Count in ${t}s until you reach ${product}.`, [f + 1, f - 1, product], t * 13);
+  }
+  // "How many 5s make 30?" — division as grouping.
+  return {
+    ...equationDraft('times-divide', product, '÷', t, 'result', 'Make groups!', `Count in ${t}s until you reach ${product}.`, [f + 1, f - 1, product - t], t * 13),
+    display: `How many ${t}s in ${product}?`,
+    spoken: `How many ${t}s make ${product}?`,
   };
 };
 
@@ -490,6 +530,7 @@ const oddEven: TopicGenerator = (rng, p) => {
 };
 
 const GENERATORS: Record<TopicId, TopicGenerator> = {
+  'times-divide': timesDivide,
   compare,
   'place-value': placeValue,
   fractions,
@@ -546,8 +587,8 @@ export function isValidQuestion(q: Question): boolean {
   if (q.problem.kind === 'fraction' && !Number.isInteger(q.answer)) return false;
   if (q.problem.kind === 'equation') {
     const { a, op, b, result } = q.problem;
-    const computed = op === '+' ? a + b : op === '-' ? a - b : a * b;
-    if (computed !== result || a < 0 || b < 0 || result < 0) return false;
+    const computed = op === '+' ? a + b : op === '-' ? a - b : op === '÷' ? a / b : a * b;
+    if (computed !== result || !Number.isInteger(result) || a < 0 || b < 0 || result < 0) return false;
   }
   return true;
 }
