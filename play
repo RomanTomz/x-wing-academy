@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# One-command launcher: installs dependencies on first run, then starts the
+# game and opens it in your browser. Press Ctrl+C to stop.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "X-Wing Academy needs Node.js 20+ (which includes npm): https://nodejs.org" >&2
+  exit 1
+fi
+
+if [ ! -d node_modules ]; then
+  echo "First run: installing dependencies…"
+  npm install
+fi
+
+exec npm start
