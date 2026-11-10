@@ -174,8 +174,9 @@ export function forestTerrain(): PixelGrid {
 }
 
 /** A small round planet for the galaxy map and briefings. */
-export function planetSprite(kind: 'moon' | 'frost' | 'dune' | 'forest', size = 64): PixelGrid {
+export function planetSprite(kind: 'moon' | 'frost' | 'dune' | 'forest' | 'tropic', size = 64): PixelGrid {
   const palettes: Record<typeof kind, { bands: string[]; dark: string; mid: string; spot?: string; cap?: string }> = {
+    tropic: { bands: ['#2fa8c9', '#3bbcd9', '#28a0c4', '#46c6df', '#2fa8c9'], dark: '#0c2f4a', mid: '#1a6a8f', spot: '#e8d79a' },
     moon: { bands: ['#7d8399', '#8c92a8', '#9aa0b5', '#868ca2'], dark: '#2b2e3d', mid: '#4b4f63', spot: '#5f6479' },
     frost: { bands: ['#cfe6f7', '#a9cdea', '#e6f3fc', '#93bde0', '#cfe6f7'], dark: '#2b3f5c', mid: '#5d7fa6', cap: '#ffffff' },
     dune: { bands: ['#e0a35c', '#c98445', '#eab676', '#b8743a', '#d99550'], dark: '#4a2a14', mid: '#8a5226' },
@@ -299,5 +300,83 @@ export function stationSprite(size = 64): PixelGrid {
     g.set(c + Math.cos(a) * (c - 4.5), c + Math.sin(a) * (c - 4.5), i % 2 ? '#ffb347' : '#7fe8ff');
   }
   g.outline('#0a0d18');
+  return g;
+}
+
+/** Tropical archipelago: turquoise shallows, sandy islands and palm groves. */
+export function tropicTerrain(): PixelGrid {
+  const rng = createRng(1006);
+  const g = new PixelGrid(TERRAIN_SIZE, TERRAIN_SIZE);
+  const n = fbm(rng);
+  for (let y = 0; y < TERRAIN_SIZE; y++) {
+    for (let x = 0; x < TERRAIN_SIZE; x++) {
+      const v = n(x, y);
+      const d = ((x + y) & 1) * 0.015;
+      let col: string;
+      if (v + d < 0.42) col = '#14607e';
+      else if (v + d < 0.5) col = '#1d7d98';
+      else if (v + d < 0.56) col = '#35a9b8';
+      else if (v + d < 0.6) col = '#e3d394';
+      else if (v + d < 0.63) col = '#cdb877';
+      else col = v > 0.7 ? '#2f7a3c' : '#3f9147';
+      g.set(x, y, col);
+    }
+  }
+  // Wave glints on the water.
+  for (let i = 0; i < 70; i++) {
+    const x = rng.next() * TERRAIN_SIZE;
+    const y = rng.next() * TERRAIN_SIZE;
+    if (n(x, y) < 0.5) {
+      g.set(x, y, '#8fe3ee');
+      g.set(x + 1, y, '#8fe3ee');
+    }
+  }
+  // Palm crowns on the islands.
+  for (let i = 0; i < 90; i++) {
+    const cx = rng.next() * TERRAIN_SIZE;
+    const cy = rng.next() * TERRAIN_SIZE;
+    if (n(cx, cy) < 0.62) continue;
+    wrapped((ox, oy) => {
+      g.circle(cx + ox + 1, cy + oy + 1, 2, '#123d1c');
+      g.circle(cx + ox, cy + oy, 2, '#4fae4f');
+      g.set(cx + ox - 1, cy + oy - 1, '#8fdc6a');
+    });
+  }
+  return g;
+}
+
+/** Battle-station surface: dark grey city blocks, towers and lit windows. */
+export function deathStarTerrain(): PixelGrid {
+  const rng = createRng(1107);
+  const g = new PixelGrid(TERRAIN_SIZE, TERRAIN_SIZE);
+  const shades = ['#3c4048', '#43474f', '#4a4e57', '#363940'];
+  g.rect(0, 0, TERRAIN_SIZE, TERRAIN_SIZE, '#30333a');
+  const cell = 8;
+  for (let cy = 0; cy < TERRAIN_SIZE; cy += cell) {
+    for (let cx = 0; cx < TERRAIN_SIZE; cx += cell) {
+      if (rng.chance(0.15)) continue;
+      const w = cell - 1 - Math.floor(rng.next() * 3);
+      const h = cell - 1 - Math.floor(rng.next() * 3);
+      g.rect(cx + 1, cy + 1, w, h, rng.pick(shades));
+      g.rect(cx + 1, cy + 1, w, 1, '#5a5f69');
+      g.rect(cx + 1 + w - 1, cy + 1, 1, h, '#26282e');
+      if (rng.chance(0.25)) g.set(cx + 2 + Math.floor(rng.next() * (w - 2)), cy + 3, rng.chance(0.7) ? '#ffe9a8' : '#9fdcff');
+    }
+  }
+  // Raised towers.
+  for (let i = 0; i < 10; i++) {
+    const cx = Math.floor(rng.next() * TERRAIN_SIZE);
+    const cy = Math.floor(rng.next() * TERRAIN_SIZE);
+    wrapped((ox, oy) => {
+      g.rect(cx + ox + 2, cy + oy + 2, 6, 6, '#1d1f24');
+      g.rect(cx + ox, cy + oy, 6, 6, '#5d626c');
+      g.rect(cx + ox, cy + oy, 6, 1, '#7a808b');
+      g.set(cx + ox + 2, cy + oy + 3, '#ffe9a8');
+    });
+  }
+  // Long equatorial channel.
+  g.rect(0, 60, TERRAIN_SIZE, 6, '#1a1c21');
+  g.rect(0, 60, TERRAIN_SIZE, 1, '#5a5f69');
+  for (let x = 0; x < TERRAIN_SIZE; x += 16) g.set(x + 4, 63, '#ffb347');
   return g;
 }

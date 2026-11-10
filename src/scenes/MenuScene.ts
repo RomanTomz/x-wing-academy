@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { PIXEL_SCALE, shipTexture, TEX } from '../art/textures';
+import { trailTints } from '../entities/Player';
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, SCENES } from '../core/constants';
 import { audio, store } from '../core/services';
 import { InputController } from '../input/InputController';
 import { nextUnlock } from '../progression/unlocks';
-import { QUICK_MISSION, type MissionConfig } from '../progression/campaign';
+import { QUICK_MISSION, type Faction } from '../progression/campaign';
 import { rankForXp } from '../progression/xp';
 import { openParentPanel } from '../ui/ParentPanel';
 import { Starfield } from '../ui/Starfield';
@@ -46,23 +47,25 @@ export class MenuScene extends Phaser.Scene {
     sub.setStroke('#04101f', 10);
     this.tweens.add({ targets: title, y: 104, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    // Decorative ships.
-    
-    this.ship = this.add.image(GAME_WIDTH / 2, 470, shipTexture(store.data.profile.equipped)).setScale(PIXEL_SCALE * 1.5).setDepth(5);
+    // Decorative ships: your current starfighter, chased by the other side.
+    const empire = store.faction === 'empire';
+    this.ship = this.add.image(GAME_WIDTH / 2, 470, shipTexture(store.loadout())).setScale(empire ? 3.4 : PIXEL_SCALE * 1.5).setDepth(5);
     const trail = this.add.particles(0, 0, TEX.spark, {
       x: { min: -20, max: 20 },
       speedY: { min: 160, max: 280 },
       lifespan: 380,
       scale: { start: 1.8, end: 0 },
       alpha: { start: 0.9, end: 0 },
-      tint: [0xffffff, 0x6fd3ff],
+      tint: trailTints(store.loadout().trail),
       frequency: 14,
       blendMode: Phaser.BlendModes.ADD,
     });
-    trail.startFollow(this.ship, 0, 66);
+    trail.startFollow(this.ship, 0, empire ? 30 : 66);
     trail.setDepth(4);
     for (let i = 0; i < 3; i++) {
-      const e = this.add.image(-200, 300, TEX.enemy).setScale(1.4).setDepth(3).setAlpha(0.9);
+      const e = empire
+        ? this.add.image(-200, 300, TEX.ship('paint-red', 'x-wing')).setScale(1.3).setAngle(90).setDepth(3).setAlpha(0.9)
+        : this.add.image(-200, 300, TEX.enemy).setScale(1.4).setDepth(3).setAlpha(0.9);
       this.enemies.push(e);
     }
 
@@ -70,7 +73,7 @@ export class MenuScene extends Phaser.Scene {
     const profile = store.data.profile;
     const rank = rankForXp(profile.totalXp);
     panel(this, 230, 470, 380, 210, COLORS.hud, 0.75).setDepth(6);
-    const helmet = this.add.image(90, 420, TEX.helmet).setScale(3).setDepth(7);
+    const helmet = this.add.image(90, 420, empire ? TEX.helmetImperial : TEX.helmet).setScale(3).setDepth(7);
     this.tweens.add({ targets: helmet, angle: { from: -4, to: 4 }, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.add.text(140, 392, `PILOT ${store.settings.pilotName.toUpperCase()}`, { fontFamily: FONTS.pixel, fontSize: '16px', color: COLORS.text }).setDepth(7);
     this.add.text(140, 422, rank.rank.name, { fontFamily: FONTS.round, fontStyle: '600', fontSize: '28px', color: COLORS.textGold }).setDepth(7);
@@ -92,12 +95,19 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(70, 542, unlockText, { fontFamily: FONTS.round, fontStyle: '600', fontSize: '18px', color: COLORS.textDim, wordWrap: { width: 330 } }).setDepth(7);
 
     // Buttons.
-    const map = new Button(this, GAME_WIDTH - 250, 360, 'GALAXY MAP', () => this.go(SCENES.map), { width: 400, height: 84, size: 24, color: COLORS.gold });
-    const tie = new Button(this, GAME_WIDTH - 250, 452, 'TIE ACADEMY', () => this.go(SCENES.tieAcademy), { width: 400, height: 68, size: 20, color: 0xff5a5a });
-    const quick = new Button(this, GAME_WIDTH - 250, 532, 'QUICK MISSION', () => this.go(SCENES.briefing, QUICK_MISSION), { width: 400, height: 64, size: 18 });
-    const hangar = new Button(this, GAME_WIDTH - 250, 608, 'HANGAR', () => this.go(SCENES.hangar), { width: 400, height: 64, size: 18 });
-    for (const b of [map, tie, quick, hangar]) b.setDepth(10);
-    this.nav = new MenuNav(this.input2, [map, tie, quick, hangar]);
+    // Choose a side: each career has its own map, planets and bosses.
+    roundText(this, GAME_WIDTH - 250, 300, 'Choose your side!', 24, COLORS.textDim).setDepth(10);
+    const career = (f: Faction): void => {
+      store.setFaction(f);
+      this.go(SCENES.map, { faction: f });
+    };
+    const rebels = new Button(this, GAME_WIDTH - 355, 370, 'REBELS', () => career('rebel'), { width: 190, height: 84, size: 20, color: COLORS.gold });
+    const imperials = new Button(this, GAME_WIDTH - 145, 370, 'EMPIRE', () => career('empire'), { width: 190, height: 84, size: 20, color: 0xff5a5a });
+    const quick = new Button(this, GAME_WIDTH - 250, 470, 'QUICK MISSION', () => this.go(SCENES.briefing, QUICK_MISSION), { width: 400, height: 64, size: 18 });
+    const hangar = new Button(this, GAME_WIDTH - 250, 548, 'HANGAR', () => this.go(SCENES.hangar), { width: 400, height: 64, size: 18 });
+    for (const b of [rebels, imperials, quick, hangar]) b.setDepth(10);
+    // Arrow keys: left/right between the two sides, down to the other buttons.
+    this.nav = new MenuNav(this.input2, [rebels, imperials, quick, hangar], { start: empire ? 1 : 0 });
 
     // Parents (small, out of the way).
     const parents = this.add
@@ -130,7 +140,7 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
-  private go(key: string, data?: MissionConfig): void {
+  private go(key: string, data?: object): void {
     if (this.panelOpen) return;
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(key, data));

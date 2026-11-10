@@ -1,11 +1,11 @@
 import { applyResult, boundsFor, clampToBounds, type DifficultyChange } from '../education/difficulty';
 import { firstStageOfTier } from '../education/stages';
 import type { TopicId } from '../education/types';
-import { bossRewards, newlyUnlocked, isUnlocked, unlockById, type Unlock } from '../progression/unlocks';
-import { BOSSES, beatenBosses, isPlanetUnlocked, planetById, PLANETS, planetIndex, starsFor, type Level, type Planet, type PlanetId } from '../progression/campaign';
+import { bossRewards, newlyUnlocked, isShipFor, isUnlocked, unlockById, type Unlock } from '../progression/unlocks';
+import { BOSSES, beatenBosses, isPlanetUnlocked, nextPlanet, planetById, starsFor, type Faction, type Level, type Planet, type PlanetId } from '../progression/campaign';
 import { rankForXp, type Rank } from '../progression/xp';
 import { sanitizeSettings, type ParentSettings } from '../settings/settings';
-import { BACKUP_KEY, defaultProfile, defaultSave, defaultStats, LIMITS, parseSave, SAVE_KEY, type SaveData } from './saveData';
+import { BACKUP_KEY, defaultProfile, defaultSave, defaultStats, LIMITS, loadoutFor, parseSave, SAVE_KEY, type Loadout, type SaveData } from './saveData';
 
 /** The subset of the Web Storage API we use, so tests can pass an in-memory fake. */
 export interface StorageLike {
@@ -80,6 +80,22 @@ export class GameStore {
 
   get settings(): Readonly<ParentSettings> {
     return this.state.settings;
+  }
+
+  /** The career the pilot last chose (Rebels or Empire). */
+  get faction(): Faction {
+    return this.state.profile.faction;
+  }
+
+  setFaction(faction: Faction): void {
+    if (this.state.profile.faction === faction) return;
+    this.state.profile.faction = faction;
+    this.save();
+  }
+
+  /** The starfighter to draw and fly for a side (defaults to the current career). */
+  loadout(faction: Faction = this.faction): Loadout {
+    return loadoutFor(this.state.profile.equipped, faction);
   }
 
   private load(): SaveData {
@@ -171,9 +187,7 @@ export class GameStore {
       const place = planetById(campaign.planetId);
       const firstStarHere = starsFor(p.campaign, campaign.planetId) === 0;
       const bossesBefore = BOSSES.filter((b) => isPlanetUnlocked(p.campaign, b.id, false)).map((b) => b.id);
-      // Only galaxy-map planets unlock a next planet (the TIE Academy isn't on the map).
-      const index = planetIndex(campaign.planetId);
-      const next = index >= 0 ? PLANETS[index + 1] : undefined;
+      const next = nextPlanet(campaign.planetId);
       const nextWasOpen = next ? isPlanetUnlocked(p.campaign, next.id, false) : true;
       const cleared = p.campaign[campaign.planetId].cleared;
       newStar = !cleared[campaign.level - 1];
@@ -188,7 +202,7 @@ export class GameStore {
     p.missionsCompleted++;
     const rankAfter = rankForXp(p.totalXp);
     const newUnlocks = [...newlyUnlocked(before, p.missionsCompleted), ...bossRewardsEarned];
-    // Auto-equip the droid the moment it is earned — it's the first big surprise.
+    // Auto-equip the droid the moment it is earned: it's the first big surprise.
     if (newUnlocks.some((u) => u.kind === 'droid')) p.equipped.droid = true;
     this.save();
     return {
@@ -203,12 +217,33 @@ export class GameStore {
     };
   }
 
-  equip(id: string): boolean {
+  /** Equip an item on one side's starfighter (engines and droid are shared). */
+  equip(id: string, faction: Faction = this.faction): boolean {
     const u = unlockById(id);
-    const p = this.state.profile;
+    const e = this.state.profile.equipped;
     if (!u || !this.isRewardUnlocked(id)) return false;
-    if (u.kind === 'droid') p.equipped.droid = !p.equipped.droid;
-    else p.equipped[u.kind] = id;
+    const rebel = faction === 'rebel';
+    switch (u.kind) {
+      case 'droid':
+        e.droid = !e.droid;
+        break;
+      case 'trail':
+        e.trail = id;
+        break;
+      case 'ship':
+        if (!isShipFor(id, faction)) return false;
+        if (rebel) e.ship = id;
+        else e.tieShip = id;
+        break;
+      case 'paint':
+        if (rebel) e.paint = id;
+        else e.tiePaint = id;
+        break;
+      case 'laser':
+        if (rebel) e.laser = id;
+        else e.tieLaser = id;
+        break;
+    }
     this.save();
     return true;
   }

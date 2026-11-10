@@ -15,10 +15,10 @@ import { Hud } from '../ui/Hud';
 import { createBackdrop, type Backdrop } from '../ui/Scenery';
 import { THEMES, type Theme } from '../art/themes';
 import { applyResult, boundsFor, type AdaptiveState } from '../education/difficulty';
-import { firstStageOfTier } from '../education/stages';
-import { BOSS_HITS, isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type MissionConfig, type Planet } from '../progression/campaign';
+import { firstStageOfTier, lastStageOfTier } from '../education/stages';
+import { bossHits, isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type Faction, type MissionConfig, type Planet } from '../progression/campaign';
 import { Interlude } from './mission/Interlude';
-import { StarDestroyerBattle } from './mission/StarDestroyerBattle';
+import { createBossBattle, type BossBattle } from './mission/bosses';
 
 type Phase = 'intro' | 'active' | 'resolving' | 'interlude' | 'complete';
 
@@ -54,7 +54,10 @@ export class MissionScene extends Phaser.Scene {
   private recentDisplays: string[] = [];
   private rng!: Rng;
   private interlude: Interlude | null = null;
-  private boss: StarDestroyerBattle | null = null;
+  private boss: BossBattle | null = null;
+  /** Which side the pilot flies for in this mission. */
+  private faction: Faction = 'rebel';
+  private finalStarted = false;
   private streak = 0;
   private missionXp = 0;
 
@@ -67,9 +70,14 @@ export class MissionScene extends Phaser.Scene {
     this.config = isMissionConfig(data) ? data : QUICK_MISSION;
     this.planet = this.config.mode === 'campaign' ? (planetById(this.config.planetId) ?? null) : null;
     this.theme = THEMES[this.planet?.theme ?? 'space'];
+    this.faction = this.planet?.faction ?? store.faction;
+    this.finalStarted = false;
+    // Start in the middle of the level so its label is honest (e.g. Cadet bonds really reach 10); it can still step down.
+    // Final bosses start at the top of the level: they're the hardest fight.
     this.localAdaptive =
-      // Start in the middle of the level so its label is honest (e.g. Cadet bonds really reach 10); it can still step down.
-      this.config.mode === 'campaign' ? { stage: firstStageOfTier(this.config.level) + 1, recent: [], sinceChange: 0 } : null;
+      this.config.mode === 'campaign'
+        ? { stage: this.planet?.final ? lastStageOfTier(this.config.level) : firstStageOfTier(this.config.level) + 1, recent: [], sinceChange: 0 }
+        : null;
     this.phase = 'intro';
     this.enemies = [];
     this.question = null;
@@ -84,25 +92,24 @@ export class MissionScene extends Phaser.Scene {
     const isBoss = this.planet?.kind === 'boss';
     this.boss = null;
     // Boss battles are one continuous fight with a fixed number of hits.
-    this.mission = isBoss ? new Mission(BOSS_HITS, { interludes: false }) : new Mission(store.settings.missionLength);
+    this.mission = isBoss && this.planet ? new Mission(bossHits(this.planet), { interludes: false }) : new Mission(store.settings.missionLength);
 
     this.starfield = createBackdrop(this, this.planet?.theme ?? 'space');
     this.fx = new Effects(this);
     const hudLabel =
       this.config.mode === 'campaign' && this.planet ? `${this.planet.name} • ${LEVEL_NAMES[this.config.level]}` : rankForXp(store.data.profile.totalXp).rank.name;
-    this.hud = new Hud(this, hudLabel, { imperial: this.planet?.faction === 'empire' });
+    this.hud = new Hud(this, hudLabel, { imperial: this.faction === 'empire' });
     this.hud.setProgress(0, this.mission.totalQuestions, 0);
     this.hud.setBanner(this.planet ? this.planet.name : 'Mission start', 'Get ready, pilot!');
 
-    const equipped = store.data.profile.equipped;
-    this.player = new Player(this, GAME_WIDTH / 2, GAME_HEIGHT + 120, equipped, {
-      groundShadow: this.planet !== null && !isBoss,
-      craft: this.planet?.faction === 'empire' ? 'tie' : undefined,
+    const loadout = store.loadout(this.faction);
+    this.player = new Player(this, GAME_WIDTH / 2, GAME_HEIGHT + 120, loadout, {
+      groundShadow: this.planet !== null && this.planet.theme !== 'space',
     });
     this.player.canFire = false;
     this.player.minY = DURING_QUESTION_MIN_Y;
-    if (equipped.droid) this.droid = new Droid(this, GAME_WIDTH / 2 - 100, GAME_HEIGHT + 100);
-    if (isBoss) this.boss = new StarDestroyerBattle(this, this.fx, this.player, BOSS_HITS);
+    if (loadout.droid) this.droid = new Droid(this, GAME_WIDTH / 2 - 100, GAME_HEIGHT + 100);
+    if (isBoss && this.planet) this.boss = createBossBattle(this.planet.id, this, this.fx, this.player, this.mission.totalQuestions);
 
     this.input2 = new InputController(this);
     this.input2.pointerSteer = true;
@@ -174,10 +181,20 @@ export class MissionScene extends Phaser.Scene {
     else this.finish();
   }
 
+  /** The decisive last question of a final boss. */
+  private get isFinalQuestion(): boolean {
+    return this.planet?.final === true && this.mission.currentQuestion === this.mission.totalQuestions;
+  }
+
   private spawnQuestion(): void {
+    const final = this.isFinalQuestion;
+    if (final && !this.finalStarted) {
+      this.finalStarted = true;
+      this.boss?.beginFinal();
+    }
     const q = generateQuestion({
       stage: this.localAdaptive ? this.localAdaptive.stage : store.data.profile.stage,
-      topicPool: this.planet?.topics,
+      topicPool: final && this.planet?.finalTopic ? [this.planet.finalTopic] : this.planet?.topics,
       enabledTopics: store.settings.topics,
       rng: this.rng,
       recentDisplays: this.recentDisplays,
@@ -192,7 +209,7 @@ export class MissionScene extends Phaser.Scene {
     speech.speak(q.spoken);
 
     const patterns = this.rng.shuffle(PATTERNS);
-    const slots = this.boss?.slots();
+    const slots = this.boss?.slots(final);
     this.enemies = q.options.map(
       (value, i) =>
         new Enemy(this, {
@@ -201,10 +218,11 @@ export class MissionScene extends Phaser.Scene {
           isCorrect: value === q.answer,
           homeX: slots ? slots[i].x : LANES[i],
           homeY: slots ? slots[i].y : 268 + this.rng.int(-6, 10),
-          pattern: slots ? 'fixed' : patterns[i],
-          delay: i * 160,
-          groundShadow: this.planet !== null && !slots,
-          look: slots ? 'turret' : this.planet?.faction === 'empire' ? 'xwing' : 'tie',
+          pattern: slots ? slots[i].pattern : patterns[i],
+          // Wait for the trench to open before the exhaust ports appear.
+          delay: i * 160 + (final ? 700 : 0),
+          groundShadow: this.planet !== null && this.planet.theme !== 'space' && !slots,
+          look: slots ? slots[i].look : this.faction === 'empire' ? 'xwing' : 'tie',
         }),
     );
     audio.play('whoosh');
@@ -226,7 +244,7 @@ export class MissionScene extends Phaser.Scene {
       this.starfield.setStorm(true);
     }
     this.starfield.speed = 2.5;
-    this.interlude = new Interlude(this, kind, this.player, { asteroid: this.theme.asteroidTint, crystal: this.theme.crystalTint }, {
+    this.interlude = new Interlude(this, kind, this.player, { asteroid: this.theme.asteroidTint, crystal: this.theme.crystalTint, debris: this.theme.debris }, {
       onCrystal: (x, y) => {
         const xp = this.mission.collectCrystal();
         this.addXp(xp, x, y);
@@ -236,7 +254,7 @@ export class MissionScene extends Phaser.Scene {
       onAsteroidDestroyed: (x, y) => {
         const xp = this.mission.destroyAsteroid();
         this.addXp(xp, x, y);
-        this.fx.rockBurst(x, y);
+        this.fx.rockBurst(x, y, this.theme.debris === 'junk');
         audio.play('asteroid');
       },
       onBump: (x, y) => this.player.bump(x, y),
@@ -312,10 +330,21 @@ export class MissionScene extends Phaser.Scene {
     this.phase = 'resolving';
     const q = this.question;
     this.streak = result.firstTry ? this.streak + 1 : 0;
-    this.fx.explosion(enemy.x, enemy.y, this.boss ? 1.6 : 1.2);
-    this.boss?.onTurretDestroyed(enemy.x, enemy.y);
-    enemy.kill();
-    audio.play('explosion');
+    if (this.boss && this.isFinalQuestion) {
+      // The final shot: a torpedo flies into the target before it blows.
+      const boss = this.boss;
+      const { x: tx, y: ty } = enemy;
+      enemy.setLocked(false);
+      boss.finalShot(tx, ty, () => {
+        enemy.kill();
+        boss.onTargetDestroyed(tx, ty, false);
+      });
+    } else {
+      this.fx.explosion(enemy.x, enemy.y, this.boss ? 1.6 : 1.2);
+      this.boss?.onTargetDestroyed(enemy.x, enemy.y, enemy.onHull);
+      enemy.kill();
+      audio.play('explosion');
+    }
     audio.play('correct');
     this.cameras.main.shake(180, 0.006);
     this.cameras.main.flash(120, 255, 240, 200, false);

@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { PIXEL_SCALE, TEX } from '../art/textures';
+import { PIXEL_SCALE, shipTexture, TEX } from '../art/textures';
 import { GAME_WIDTH, PLAYER_MAX_Y, PLAYER_MIN_Y } from '../core/constants';
 import { audio } from '../core/services';
 import type { InputController } from '../input/InputController';
-import type { Equipped } from '../persistence/saveData';
+import type { Loadout } from '../persistence/saveData';
 import { unlockById, type ShipId } from '../progression/unlocks';
 
 export interface Laser {
@@ -14,13 +14,10 @@ export interface Laser {
 const ACCEL = 9; // responsiveness (higher = snappier)
 const LASER_SPEED = 1250;
 
-/** Which craft the player is flying. TIE is used only in the TIE Academy. */
-export type Craft = ShipId | 'tie';
 
 type Offset = readonly [number, number];
 
 interface CraftProfile {
-  texture: (e: Equipped) => string;
   scale: number;
   speed: number;
   cooldown: number;
@@ -28,16 +25,14 @@ interface CraftProfile {
   volleys: readonly (readonly Offset[])[];
   engines: readonly Offset[];
   laserScale: Offset;
-  laserOverride?: string;
 }
 
 /**
  * Each craft has a signature rather than being strictly better or worse:
- * the X-wing is quick, the Y-wing fires big blasts, the B-wing fires three at once.
+ * quick ones fire small bolts, slow ones fire big blasts or several at once.
  */
-export const CRAFT: Record<Craft, CraftProfile> = {
+export const CRAFT: Record<ShipId, CraftProfile> = {
   'x-wing': {
-    texture: (e) => TEX.ship(e.paint, 'x-wing'),
     scale: PIXEL_SCALE,
     speed: 560,
     cooldown: 170,
@@ -49,7 +44,6 @@ export const CRAFT: Record<Craft, CraftProfile> = {
     laserScale: [1, 1.1],
   },
   'y-wing': {
-    texture: (e) => TEX.ship(e.paint, 'y-wing'),
     scale: PIXEL_SCALE,
     speed: 500,
     cooldown: 230,
@@ -58,7 +52,6 @@ export const CRAFT: Record<Craft, CraftProfile> = {
     laserScale: [1.8, 1.4],
   },
   'b-wing': {
-    texture: (e) => TEX.ship(e.paint, 'b-wing'),
     scale: PIXEL_SCALE,
     speed: 530,
     cooldown: 240,
@@ -66,21 +59,61 @@ export const CRAFT: Record<Craft, CraftProfile> = {
     engines: [[-9, 28], [9, 28]],
     laserScale: [1.1, 1.1],
   },
-  tie: {
-    texture: () => TEX.tiePlayer,
+  'tie-fighter': {
     scale: 2.3,
     speed: 610,
     cooldown: 160,
     volleys: [[[-11, -12], [11, -12]]],
     engines: [[-7, 10], [7, 10]],
     laserScale: [1, 1.1],
-    laserOverride: 'laser-green',
+  },
+  'tie-interceptor': {
+    scale: 2.3,
+    speed: 660,
+    cooldown: 150,
+    volleys: [
+      [[-52, -44], [52, -44]],
+      [[-48, -36], [48, -36]],
+    ],
+    engines: [[-7, 10], [7, 10]],
+    laserScale: [0.9, 1.1],
+  },
+  'tie-bomber': {
+    scale: 2.3,
+    speed: 480,
+    cooldown: 240,
+    volleys: [[[-20, -14], [20, -14]]],
+    engines: [[-20, 12], [20, 12]],
+    laserScale: [1.8, 1.4],
+  },
+  'tie-advanced': {
+    scale: 2.3,
+    speed: 600,
+    cooldown: 220,
+    volleys: [[[-16, -22], [0, -26], [16, -22]]],
+    engines: [[-8, 26], [8, 26]],
+    laserScale: [1.1, 1.1],
   },
 };
 
-export function craftFor(equipped: Equipped): Craft {
-  const s = equipped.ship;
-  return s === 'y-wing' || s === 'b-wing' ? s : 'x-wing';
+export function craftFor(loadout: Loadout): ShipId {
+  return loadout.ship in CRAFT ? (loadout.ship as ShipId) : 'x-wing';
+}
+
+/** Particle colours for an engine trail. */
+export function trailTints(trailId: string): number[] {
+  switch (trailId) {
+    case 'trail-rainbow':
+      return [0xff4f4f, 0xffb84f, 0xfff94f, 0x4fff7a, 0x4fc3ff, 0xb84fff];
+    case 'trail-comet':
+      return [0xffffff, 0xffd23f, 0xff6a2a, 0xff3b1f];
+    case 'trail-hyperspace':
+      return [0xffffff, 0xffffff, 0xbfe8ff, 0x7fc8ff];
+    default: {
+      const c = unlockById(trailId)?.color ?? 0x6fd3ff;
+      return [0xffffff, c, c];
+    }
+  }
 }
 
 /** The player's starfighter: smooth flight, banking, lasers and engine trails. */
@@ -105,21 +138,15 @@ export class Player {
   minY = PLAYER_MIN_Y;
   maxY = PLAYER_MAX_Y;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, equipped: Equipped, opts: { groundShadow?: boolean; craft?: Craft } = {}) {
+  constructor(scene: Phaser.Scene, x: number, y: number, loadout: Loadout, opts: { groundShadow?: boolean } = {}) {
     this.scene = scene;
-    this.profile = CRAFT[opts.craft ?? craftFor(equipped)];
-    const laserId = this.profile.laserOverride ?? equipped.laser;
-    this.laserKey = TEX.laser(laserId);
-    this.laserColor = unlockById(laserId)?.color ?? 0xff4a4a;
+    this.profile = CRAFT[craftFor(loadout)];
+    this.laserKey = TEX.laser(loadout.laser);
+    this.laserColor = unlockById(loadout.laser)?.color ?? 0xff4a4a;
 
-    const trailColor = opts.craft === 'tie' ? 0x9fe8ff : (unlockById(equipped.trail)?.color ?? 0x6fd3ff);
-    const trailId = opts.craft === 'tie' ? 'trail-blue' : equipped.trail;
-    const tint =
-      trailId === 'trail-rainbow'
-        ? [0xff4f4f, 0xffb84f, 0xfff94f, 0x4fff7a, 0x4fc3ff, 0xb84fff]
-        : trailId === 'trail-comet'
-          ? [0xffffff, 0xffd23f, 0xff6a2a, 0xff3b1f]
-          : [0xffffff, trailColor, trailColor];
+    const trailId = loadout.trail;
+    const trailColor = unlockById(trailId)?.color ?? 0x6fd3ff;
+    const tint = trailTints(trailId);
     for (let i = 0; i < this.profile.engines.length; i++) {
       const trail = scene.add.particles(0, 0, TEX.spark, {
         x: { min: -5, max: 5 },
@@ -137,7 +164,7 @@ export class Player {
     }
 
     this.glow = scene.add.image(x, y, TEX.flare).setTint(trailColor).setAlpha(0.5).setScale(0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(9);
-    const texture = this.profile.texture(equipped);
+    const texture = shipTexture(loadout);
     if (opts.groundShadow) {
       // A shadow on the planet surface below sells the low-altitude flight.
       this.shadow = scene.add.image(x, y, texture).setScale(this.profile.scale * 0.8).setTintFill(0x000000).setAlpha(0.3).setDepth(1);

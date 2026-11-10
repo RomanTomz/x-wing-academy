@@ -9,7 +9,7 @@ import { rankForXp } from '../progression/xp';
 import type { Unlock } from '../progression/unlocks';
 import { Starfield } from '../ui/Starfield';
 import { placeIcon, THEME_TEX } from '../art/themes';
-import { isMissionConfig, LEVEL_NAMES, LEVELS, planetById, QUICK_MISSION, type MissionConfig, type Planet } from '../progression/campaign';
+import { isMissionConfig, LEVEL_NAMES, LEVELS, planetById, QUICK_MISSION, type Faction, type MissionConfig, type Planet } from '../progression/campaign';
 import { REGISTRY } from './GalaxyMapScene';
 import { Button, MenuNav, panel, pixelText, roundText } from '../ui/widgets';
 
@@ -33,6 +33,7 @@ export class CompleteScene extends Phaser.Scene {
   private nav: MenuNav | null = null;
   private fireworks!: Phaser.GameObjects.Particles.ParticleEmitter;
   private config: MissionConfig = QUICK_MISSION;
+  private faction: Faction = 'rebel';
 
   constructor() {
     super(SCENES.complete);
@@ -69,7 +70,10 @@ export class CompleteScene extends Phaser.Scene {
     this.time.addEvent({ delay: 650, repeat: 6, callback: burst });
 
     // Victory lap.
-    const ship = this.add.image(-100, 300, shipTexture(store.data.profile.equipped)).setScale(PIXEL_SCALE).setAngle(90).setDepth(2);
+    const empire = (planet?.faction ?? store.faction) === 'empire';
+    this.faction = empire ? 'empire' : 'rebel';
+    // Rebel ships are drawn from above (turn them to fly right); TIEs are drawn from the front.
+    const ship = this.add.image(-100, 300, shipTexture(store.loadout(this.faction))).setScale(empire ? 2.3 : PIXEL_SCALE).setAngle(empire ? 0 : 90).setDepth(2);
     this.tweens.add({ targets: ship, x: GAME_WIDTH + 150, duration: 2400, ease: 'Sine.easeInOut', delay: 200 });
     this.tweens.add({ targets: ship, y: 220, duration: 1200, yoyo: true, ease: 'Sine.easeInOut', delay: 200 });
 
@@ -142,8 +146,7 @@ export class CompleteScene extends Phaser.Scene {
 
     this.time.delayedCall(Math.max(2600, at - 3000), () => {
       const again = new Button(this, 175, 660, 'FLY AGAIN', () => this.go(SCENES.briefing, this.config), { width: 290, height: 72, size: 18, color: COLORS.gold });
-      const tie = this.config.mode === 'campaign' && this.config.planetId === 'tie-academy';
-      const map = new Button(this, 485, 660, tie ? 'TIE ACADEMY' : 'GALAXY MAP', () => this.go(tie ? SCENES.tieAcademy : SCENES.map), {
+      const map = new Button(this, 485, 660, this.faction === 'empire' ? 'IMPERIAL MAP' : 'GALAXY MAP', () => this.go(SCENES.map, { faction: this.faction }), {
         width: 290,
         height: 72,
         size: 18,
@@ -225,11 +228,11 @@ export class CompleteScene extends Phaser.Scene {
   private revealPlanet(p: Planet): void {
     const boss = p.kind === 'boss';
     this.showCard(
-      boss ? 'BOSS BATTLE UNLOCKED!' : 'NEW PLANET!',
+      p.final ? 'FINAL BOSS UNLOCKED!' : boss ? 'BOSS BATTLE UNLOCKED!' : 'NEW PLANET!',
       boss ? 0xff4a4a : 0x7fe8ff,
       this.add.image(0, -10, placeIcon(p)).setScale(boss ? 2.6 : 2.4),
       p.name,
-      `${p.focus} — find it on the Galaxy Map!`,
+      `Find it on the ${p.faction === 'empire' ? 'Imperial' : 'Galaxy'} Map!`,
     );
     speech.speak(`${boss ? 'Boss battle unlocked' : 'New planet unlocked'}! ${p.name}!`, { interrupt: false });
   }
@@ -237,7 +240,7 @@ export class CompleteScene extends Phaser.Scene {
   private revealUnlock(u: Unlock): void {
     let icon: Phaser.GameObjects.Image;
     if (u.kind === 'droid') icon = this.add.image(0, -10, TEX.droid).setScale(6);
-    else if (u.kind === 'paint') icon = this.add.image(0, -10, TEX.ship(u.id, store.data.profile.equipped.ship)).setScale(2.6);
+    else if (u.kind === 'paint') icon = this.add.image(0, -10, TEX.ship(u.id, store.loadout(this.faction).ship)).setScale(2.6);
     else if (u.kind === 'laser') icon = this.add.image(0, -10, TEX.laser(u.id)).setScale(2.2).setAngle(30);
     else icon = this.add.image(0, -10, TEX.spark).setScale(6).setTint(u.color);
     this.showCard('NEW REWARD!', u.color, icon, u.name, u.kind === 'droid' ? 'BIP-8 will fly with you!' : 'Equip it in the Hangar!');
@@ -270,7 +273,7 @@ export class CompleteScene extends Phaser.Scene {
     dim.setInteractive().on('pointerdown', close);
   }
 
-  private go(key: string, data?: MissionConfig): void {
+  private go(key: string, data?: object): void {
     speech.cancel();
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(key, data));

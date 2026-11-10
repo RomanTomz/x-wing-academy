@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ASTEROID_VARIANTS, TEX } from '../../art/textures';
+import { JUNK_VARIANTS, junkTexture } from '../../art/junk';
 import { GAME_HEIGHT, GAME_WIDTH } from '../../core/constants';
 import type { InterludeKind } from '../../progression/mission';
 import type { Player } from '../../entities/Player';
@@ -22,6 +23,13 @@ export interface InterludeCallbacks {
 
 const SPAWN_MS = 13000;
 
+export interface InterludeLook {
+  asteroid: number;
+  crystal: number;
+  /** Rocks on planets; broken ship parts and cargo in space. */
+  debris: 'rock' | 'junk';
+}
+
 /** A short, pressure-free flying section between questions. */
 export class Interlude {
   private scene: Phaser.Scene;
@@ -34,11 +42,11 @@ export class Interlude {
   private nextCrystalInField = 1500;
   private formation = 0;
   private done = false;
-  private tints: { asteroid: number; crystal: number };
+  private look: InterludeLook;
 
-  constructor(scene: Phaser.Scene, kind: InterludeKind, player: Player, tints: { asteroid: number; crystal: number }, cb: InterludeCallbacks) {
+  constructor(scene: Phaser.Scene, kind: InterludeKind, player: Player, look: InterludeLook, cb: InterludeCallbacks) {
     this.scene = scene;
-    this.tints = tints;
+    this.look = look;
     this.kind = kind;
     this.player = player;
     this.cb = cb;
@@ -112,7 +120,7 @@ export class Interlude {
   }
 
   private spawnCrystal(x: number, y: number): void {
-    const sprite = this.scene.add.image(x, y, TEX.crystal).setScale(2.6).setDepth(6).setTint(this.tints.crystal);
+    const sprite = this.scene.add.image(x, y, TEX.crystal).setScale(2.6).setDepth(6).setTint(this.look.crystal);
     const glow = this.scene.add.image(x, y, TEX.flare).setScale(0.6).setTint(0x5ff2ff).setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(5);
     sprite.setData('glow', glow);
     this.items.push({ sprite, vx: 0, vy: 230, spin: 0, radius: 22, kind: 'crystal' });
@@ -132,18 +140,19 @@ export class Interlude {
   }
 
   private spawnAsteroid(): void {
+    const junk = this.look.debris === 'junk';
     const scale = Phaser.Math.FloatBetween(2.2, 3.6);
-    const sprite = this.scene.add
-      .image(Phaser.Math.Between(80, GAME_WIDTH - 80), -60, TEX.asteroid(Phaser.Math.Between(0, ASTEROID_VARIANTS - 1)))
-      .setScale(scale)
-      .setDepth(6)
-      .setTint(this.tints.asteroid);
+    const key = junk ? junkTexture(Phaser.Math.Between(0, JUNK_VARIANTS - 1)) : TEX.asteroid(Phaser.Math.Between(0, ASTEROID_VARIANTS - 1));
+    const sprite = this.scene.add.image(Phaser.Math.Between(80, GAME_WIDTH - 80), -60, key).setScale(scale).setDepth(6);
+    if (!junk) sprite.setTint(this.look.asteroid);
+    // Junk tumbles faster than rocks; its hit circle follows the sprite's size.
+    const radius = (Math.min(sprite.width, sprite.height) * 0.45 + 2) * scale;
     this.items.push({
       sprite,
       vx: Phaser.Math.Between(-60, 60),
       vy: Phaser.Math.Between(170, 290),
-      spin: Phaser.Math.FloatBetween(-1.5, 1.5),
-      radius: 13 * scale,
+      spin: Phaser.Math.FloatBetween(-1.5, 1.5) * (junk ? 1.6 : 1),
+      radius: junk ? radius : 13 * scale,
       kind: 'asteroid',
     });
   }

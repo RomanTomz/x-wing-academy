@@ -60,10 +60,11 @@ export class Effects {
     this.scene.tweens.add({ targets: ring, scale: 2.4 * size, alpha: 0, duration: 520, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
   }
 
-  rockBurst(x: number, y: number): void {
-    this.smoke.explode(6, x, y);
-    this.debris.explode(14, x, y);
-    this.sparks.explode(10, x, y);
+  /** Breaking a rock, or (metal) a piece of space junk, which throws more sparks. */
+  rockBurst(x: number, y: number, metal = false): void {
+    this.smoke.explode(metal ? 3 : 6, x, y);
+    this.debris.explode(metal ? 20 : 14, x, y);
+    this.sparks.explode(metal ? 28 : 10, x, y);
   }
 
   sparkle(x: number, y: number, count = 18): void {

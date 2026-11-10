@@ -29,7 +29,6 @@ export const SCENES = {
   boot: 'Boot',
   menu: 'Menu',
   map: 'GalaxyMap',
-  tieAcademy: 'TieAcademy',
   briefing: 'Briefing',
   mission: 'Mission',
   pause: 'Pause',

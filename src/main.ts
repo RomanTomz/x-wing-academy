@@ -13,7 +13,6 @@ import { HangarScene } from './scenes/HangarScene';
 import { MenuScene } from './scenes/MenuScene';
 import { MissionScene } from './scenes/MissionScene';
 import { PauseScene } from './scenes/PauseScene';
-import { TieAcademyScene } from './scenes/TieAcademyScene';
 
 // Browsers only allow audio after a user gesture.
 const unlockAudio = (): void => audio.unlock();
@@ -50,7 +49,7 @@ async function start(): Promise<void> {
     input: { gamepad: true, activePointers: 2 },
     fps: { target: 60 },
     audio: { noAudio: true },
-    scene: [BootScene, MenuScene, GalaxyMapScene, TieAcademyScene, BriefingScene, MissionScene, PauseScene, CompleteScene, HangarScene],
+    scene: [BootScene, MenuScene, GalaxyMapScene, BriefingScene, MissionScene, PauseScene, CompleteScene, HangarScene],
   });
   // Handy for debugging in the console.
   (window as unknown as { game: Phaser.Game }).game = game;

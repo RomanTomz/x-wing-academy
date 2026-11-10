@@ -8,8 +8,12 @@ import {
   defaultCampaign,
   isMissionConfig,
   isPlanetUnlocked,
+  chainFor,
+  EMPIRE_PLANETS,
   LEVELS,
-  PLANETS,
+  nextPlanet,
+  planetIndex,
+  REBEL_PLANETS,
   starsFor,
 } from '../src/progression/campaign';
 import { GameStore, MemoryStorage } from '../src/persistence/gameStore';
@@ -18,7 +22,7 @@ import { sanitizeSave } from '../src/persistence/saveData';
 const noneEnabled = Object.fromEntries(ALL_TOPICS.map((t) => [t, false])) as Record<TopicId, boolean>;
 
 describe('planet questions', () => {
-  for (const planet of PLANETS) {
+  for (const planet of REBEL_PLANETS) {
     for (const level of LEVELS) {
       it(`${planet.name} / level ${level}: valid, on-topic and in range across the level's stages`, () => {
         const rng = createRng(planet.id.length * 100 + level);
@@ -92,7 +96,8 @@ describe('planet questions', () => {
 describe('planet unlocking', () => {
   it('only the first planet is open at the start', () => {
     const c = defaultCampaign();
-    expect(PLANETS.map((p) => isPlanetUnlocked(c, p.id, false))).toEqual([true, false, false, false]);
+    expect(REBEL_PLANETS.map((p) => isPlanetUnlocked(c, p.id, false))).toEqual([true, false, false, false]);
+    expect(EMPIRE_PLANETS.map((p) => isPlanetUnlocked(c, p.id, false))).toEqual([true, false, false, false]);
   });
 
   it('clearing any level of a planet opens the next one', () => {
@@ -104,7 +109,25 @@ describe('planet unlocking', () => {
 
   it('parents can open every planet', () => {
     const c = defaultCampaign();
-    expect(PLANETS.every((p) => isPlanetUnlocked(c, p.id, true))).toBe(true);
+    expect([...REBEL_PLANETS, ...EMPIRE_PLANETS].every((p) => isPlanetUnlocked(c, p.id, true))).toBe(true);
+  });
+
+  it('each career is its own chain: winning one side never opens the other', () => {
+    const c = defaultCampaign();
+    c['tie-academy'].cleared[0] = true;
+    expect(isPlanetUnlocked(c, 'jedha', false)).toBe(true);
+    expect(isPlanetUnlocked(c, 'yavin-4', false)).toBe(false);
+    expect(isPlanetUnlocked(c, 'frost-planet', false)).toBe(false);
+    expect(chainFor('empire').map((p) => p.id)).toEqual(['tie-academy', 'jedha', 'yavin-4', 'scarif']);
+    expect(planetIndex('scarif')).toBe(3);
+    expect(planetIndex('death-star')).toBe(-1);
+    expect(nextPlanet('forest-moon')).toBeUndefined();
+    expect(nextPlanet('jedha')?.id).toBe('yavin-4');
+  });
+
+  it('empire planets each practise one empire skill', () => {
+    expect(EMPIRE_PLANETS.map((p) => p.topics)).toEqual([['compare'], ['place-value'], ['odd-even'], ['fractions']]);
+    for (const p of EMPIRE_PLANETS) expect(p.faction).toBe('empire');
   });
 
   it('completing a level awards a star once and unlocks the next planet once', () => {
@@ -124,10 +147,20 @@ describe('planet unlocking', () => {
     expect(starsFor(store.data.profile.campaign, 'training-moon')).toBe(2);
   });
 
-  it('the last planet unlocks nothing further', () => {
+  it('the last planet unlocks no planet, only its final boss', () => {
     const store = new GameStore(new MemoryStorage());
     const r = store.completeMission(1000, { planetId: 'forest-moon', level: 1 });
     expect(r.planetUnlocked).toBeNull();
+    expect(r.bossUnlocked?.id).toBe('death-star');
+  });
+
+  it('winning the TIE Academy opens Jedha and the Hoth boss', () => {
+    const store = new GameStore(new MemoryStorage());
+    const r = store.completeMission(800, { planetId: 'tie-academy', level: 2 });
+    expect(r.newStar).toBe(true);
+    expect(r.planetUnlocked?.id).toBe('jedha');
+    expect(r.bossUnlocked?.id).toBe('hoth-generator');
+    expect(store.isPlanetUnlocked('frost-planet')).toBe(false);
   });
 
   it('quick missions do not award stars', () => {

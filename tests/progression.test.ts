@@ -119,7 +119,10 @@ describe('unlocks', () => {
 
   it('unlock ids are unique and starters are free', () => {
     expect(new Set(UNLOCKS.map((u) => u.id)).size).toBe(UNLOCKS.length);
-    expect(UNLOCKS.filter((u) => u.missions === 0 && !u.boss).map((u) => u.kind).sort()).toEqual(['laser', 'paint', 'ship', 'ship', 'ship', 'trail']);
+    // Three Rebel ships, four TIEs, and each side's default paint and lasers.
+    expect(UNLOCKS.filter((u) => u.missions === 0 && !u.boss).map((u) => u.id).sort()).toEqual(
+      ['b-wing', 'laser-green', 'laser-red', 'paint-imperial', 'paint-red', 'tie-advanced', 'tie-bomber', 'tie-fighter', 'tie-interceptor', 'trail-blue', 'x-wing', 'y-wing'],
+    );
   });
 
   it('first mission unlocks the droid buddy', () => {

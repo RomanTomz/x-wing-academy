@@ -4,18 +4,29 @@ import { placeIcon, THEME_TEX } from '../art/themes';
 import { COLORS, FONTS, GAME_WIDTH, SCENES } from '../core/constants';
 import { audio, speech, store } from '../core/services';
 import { InputController } from '../input/InputController';
-import { BOSSES, LEVELS, planetById, PLANETS, type Level, type MissionConfig, type Planet, type PlanetId } from '../progression/campaign';
+import { bossesFor, chainFor, isFaction, LEVELS, planetById, type Faction, type Level, type MissionConfig, type Planet, type PlanetId } from '../progression/campaign';
 import { Starfield } from '../ui/Starfield';
 import { createLevelPicker } from '../ui/LevelPicker';
 import { MenuNav, panel, pixelText, roundText } from '../ui/widgets';
 
 const SPOTS: readonly [number, number][] = [
   // Spread out so boss battles fit on the route between planets.
-  [145, 440],
-  [600, 255],
-  [905, 445],
-  [1165, 265],
+  [130, 450],
+  [470, 250],
+  [790, 450],
+  [1050, 250],
 ];
+/** Where each career's final boss waits, after the last planet. */
+const FINAL_SPOT: [number, number] = [1185, 470];
+
+const STYLE: Record<Faction, { title: string; color: string; sub: string; accent: number }> = {
+  rebel: { title: 'GALAXY MAP', color: COLORS.textGold, sub: 'Pick a planet to defend!', accent: COLORS.gold },
+  empire: { title: 'IMPERIAL MAP', color: '#ff8a8a', sub: 'Pick a rebel base to attack!', accent: 0xff5a5a },
+};
+
+export interface MapData {
+  faction?: Faction;
+}
 
 export const REGISTRY = {
   lastPlanet: 'map.lastPlanet',
@@ -46,12 +57,18 @@ export class GalaxyMapScene extends Phaser.Scene {
   private pickerNav: MenuNav | null = null;
   private t = 0;
   private leaving = false;
+  private faction: Faction = 'rebel';
 
   constructor() {
     super(SCENES.map);
   }
 
-  create(): void {
+  create(data?: MapData): void {
+    this.faction = isFaction(data?.faction) ? data.faction : store.faction;
+    store.setFaction(this.faction);
+    const style = STYLE[this.faction];
+    const planets = chainFor(this.faction);
+    const bosses = bossesFor(this.faction);
     this.views = [];
     this.picker = null;
     this.pickerNav = null;
@@ -60,27 +77,27 @@ export class GalaxyMapScene extends Phaser.Scene {
     this.starfield = new Starfield(this, { planet: false });
     this.input2 = new InputController(this);
     this.cameras.main.fadeIn(350, 0, 0, 0);
-    audio.playMusic('menu');
+    audio.playMusic('menu', this.faction === 'empire' ? { transpose: -5, bpm: 90 } : undefined);
     audio.setEngine(-1);
 
-    pixelText(this, GAME_WIDTH / 2, 56, 'GALAXY MAP', 38, COLORS.textGold);
-    roundText(this, GAME_WIDTH / 2, 104, 'Pick a planet to defend!', 26, COLORS.textDim);
+    pixelText(this, GAME_WIDTH / 2, 56, style.title, 38, style.color);
+    roundText(this, GAME_WIDTH / 2, 104, style.sub, 26, COLORS.textDim);
 
-    this.drawPath();
+    this.drawPath(planets, bosses.find((b) => b.final));
     // Map order: each planet, then any boss battle that sits after it on the route.
-    PLANETS.forEach((p, i) => {
+    planets.forEach((p, i) => {
       const [x, y] = SPOTS[i];
       this.views.push(this.makePlanet(p, this.views.length, x, y));
       const next = SPOTS[i + 1];
-      for (const boss of BOSSES.filter((b) => b.unlockAfter === p.id)) {
-        if (!next) continue;
-        // Halfway along the arc to the next planet.
-        this.views.push(this.makePlanet(boss, this.views.length, (x + next[0]) / 2, (y + next[1]) / 2 - 30));
+      for (const boss of bosses.filter((b) => b.unlockAfter === p.id)) {
+        // Final bosses wait after the last planet; others sit halfway along the arc to the next planet.
+        if (boss.final || !next) this.views.push(this.makePlanet(boss, this.views.length, FINAL_SPOT[0], FINAL_SPOT[1]));
+        else this.views.push(this.makePlanet(boss, this.views.length, (x + next[0]) / 2, (y + next[1]) / 2 - 30));
       }
     });
 
-    this.ring = this.add.image(0, 0, TEX.ring).setTint(COLORS.gold).setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(4);
-    this.cursor = this.add.image(0, 0, shipTexture(store.data.profile.equipped)).setScale(1.3).setDepth(8);
+    this.ring = this.add.image(0, 0, TEX.ring).setTint(style.accent).setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(4);
+    this.cursor = this.add.image(0, 0, shipTexture(store.loadout(this.faction))).setScale(1.3).setDepth(8);
 
     panel(this, GAME_WIDTH / 2, 655, 760, 92, COLORS.hud, 0.85).setDepth(9);
     this.info = roundText(this, GAME_WIDTH / 2, 638, '', 32, COLORS.text).setDepth(10);
@@ -109,17 +126,22 @@ export class GalaxyMapScene extends Phaser.Scene {
     this.select(start, false);
   }
 
-  private drawPath(): void {
+  private drawPath(planets: readonly Planet[], finalBoss: Planet | undefined): void {
     const g = this.add.graphics().setDepth(1);
-    for (let i = 0; i < SPOTS.length - 1; i++) {
-      const [x0, y0] = SPOTS[i];
-      const [x1, y1] = SPOTS[i + 1];
-      const open = store.isPlanetUnlocked(PLANETS[i + 1].id);
-      g.fillStyle(open ? COLORS.hud : 0x3a4a66, open ? 0.9 : 0.6);
+    const legs: { from: [number, number]; to: [number, number]; open: boolean; color: number }[] = [];
+    for (let i = 0; i < planets.length - 1; i++) {
+      legs.push({ from: SPOTS[i] as [number, number], to: SPOTS[i + 1] as [number, number], open: store.isPlanetUnlocked(planets[i + 1].id), color: COLORS.hud });
+    }
+    if (finalBoss) {
+      const last = SPOTS[planets.length - 1] as [number, number];
+      legs.push({ from: last, to: FINAL_SPOT, open: store.isPlanetUnlocked(finalBoss.id), color: 0xff5a5a });
+    }
+    for (const { from: [x0, y0], to: [x1, y1], open, color } of legs) {
+      g.fillStyle(open ? color : 0x3a4a66, open ? 0.9 : 0.6);
       const steps = 16;
       for (let s = 1; s < steps; s++) {
         const t = s / steps;
-        // Gentle arc between planets.
+        // Gentle arc between stops.
         const x = x0 + (x1 - x0) * t;
         const y = y0 + (y1 - y0) * t - Math.sin(t * Math.PI) * 30;
         g.fillCircle(x, y, 4);
@@ -131,11 +153,12 @@ export class GalaxyMapScene extends Phaser.Scene {
     const boss = p.kind === 'boss';
     const open = store.isPlanetUnlocked(p.id);
     const glow = this.add.image(x, y, TEX.flare).setScale(boss ? 1.3 : 2).setAlpha(open ? 0.35 : 0.08).setBlendMode(Phaser.BlendModes.ADD).setDepth(2);
-    glow.setTint(boss ? 0xff4a4a : p.theme === 'frost' ? 0x9fdcff : p.theme === 'dune' ? 0xffb060 : p.theme === 'forest' ? 0x7aff9a : 0xc8c8ff);
+    const glows: Partial<Record<Planet['theme'], number>> = { frost: 0x9fdcff, dune: 0xffb060, forest: 0x7aff9a, tropic: 0x5fe8e0 };
+    glow.setTint(boss ? 0xff4a4a : (glows[p.theme] ?? 0xc8c8ff));
     const sprite = this.add.image(x, y, placeIcon(p)).setScale(boss ? 1.7 : 2.1).setDepth(3);
     if (!open) sprite.setTint(0x4a5070);
     const lock = this.add.image(x, y, TEX.lock).setScale(boss ? 3 : 4).setDepth(5).setVisible(!open);
-    if (boss) pixelText(this, x, y - 48, 'BOSS', 12, open ? '#ff6b6b' : '#6b4a55').setDepth(5);
+    if (boss) pixelText(this, x, y - 56, p.final ? 'FINAL BOSS' : 'BOSS', 12, open ? '#ff6b6b' : '#6b4a55').setDepth(5);
     const nameY = boss ? y + 52 : y + 98;
     const name = roundText(this, x, nameY, p.name, boss ? 20 : 28, open ? COLORS.text : '#5d6b85').setDepth(5);
     const cleared = store.data.profile.campaign[p.id].cleared;
@@ -179,7 +202,8 @@ export class GalaxyMapScene extends Phaser.Scene {
       burst.setDepth(6);
       burst.explode(70);
       const boss = v.planet.kind === 'boss';
-      const t = pixelText(this, v.sprite.x, v.sprite.y + (boss ? 110 : 172), boss ? 'BOSS UNLOCKED!' : 'NEW PLANET!', boss ? 14 : 20, boss ? '#ff8a8a' : '#5dff9a').setDepth(7);
+      const label = v.planet.final ? 'FINAL BOSS!' : boss ? 'BOSS UNLOCKED!' : 'NEW PLANET!';
+      const t = pixelText(this, Math.min(v.sprite.x, GAME_WIDTH - 110), v.sprite.y + (boss ? 110 : 172), label, boss ? 14 : 20, boss ? '#ff8a8a' : '#5dff9a').setDepth(7);
       this.tweens.add({ targets: t, y: t.y - 14, duration: 500, yoyo: true, repeat: 3, onComplete: () => t.destroy() });
       speech.speak(`${boss ? 'Boss battle unlocked' : 'New planet unlocked'}! ${v.planet.name}!`, { interrupt: false });
     });
@@ -195,10 +219,10 @@ export class GalaxyMapScene extends Phaser.Scene {
     this.tweens.add({ targets: this.cursor, x: v.sprite.x, y: v.sprite.y - lift, duration: sound ? 350 : 0, ease: 'Cubic.easeOut' });
     const open = store.isPlanetUnlocked(v.planet.id);
     const boss = v.planet.kind === 'boss';
-    this.info.setText(open ? (boss ? `Boss battle: ${v.planet.name}!` : `${v.planet.name}: ${v.planet.focus}`) : `${v.planet.name} is locked`);
+    this.info.setText(open ? (boss ? `${v.planet.final ? 'Final battle' : 'Boss battle'}: ${v.planet.name}!` : `${v.planet.name}: ${v.planet.focus}`) : `${v.planet.name} is locked`);
     const prevPlanet =
       v.planet.kind === 'boss' ? planetById(v.planet.unlockAfter ?? '') : [...this.views.slice(0, this.selected)].reverse().find((x) => x.planet.kind === 'planet')?.planet;
-    this.sub.setText(open ? (boss ? `${v.planet.focus} — press SPACE to attack!` : 'Press SPACE or click to fly there!') : `Win a mission on ${prevPlanet?.name ?? 'the last planet'} to open it!`);
+    this.sub.setText(open ? (boss ? `${v.planet.focus} Press SPACE to attack!` : 'Press SPACE or click to fly there!') : `Win a mission on ${prevPlanet?.name ?? 'the last planet'} to open it!`);
   }
 
   private choose(): void {
@@ -213,7 +237,11 @@ export class GalaxyMapScene extends Phaser.Scene {
 
   private openPicker(p: Planet): void {
     audio.play('select');
-    const picker = createLevelPicker(this, this.input2, p, { onPick: (lvl) => this.launch(p, lvl), onBack: () => this.closePicker() });
+    const picker = createLevelPicker(this, this.input2, p, {
+      onPick: (lvl) => this.launch(p, lvl),
+      onBack: () => this.closePicker(),
+      accent: this.faction === 'empire' ? 0xff5a5a : undefined,
+    });
     this.picker = picker.container;
     this.pickerNav = picker.nav;
   }

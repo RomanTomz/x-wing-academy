@@ -154,13 +154,9 @@ export class MenuNav {
     let moved = false;
     if (this.input.consume('down')) { this.index = (this.index + this.columns) % n; moved = true; }
     if (this.input.consume('up')) { this.index = (this.index - this.columns + n) % n; moved = true; }
-    if (this.columns > 1) {
-      if (this.input.consume('right')) { this.index = (this.index + 1) % n; moved = true; }
-      if (this.input.consume('left')) { this.index = (this.index - 1 + n) % n; moved = true; }
-    } else {
-      this.input.consume('left');
-      this.input.consume('right');
-    }
+    // Left/right step through the buttons too (handy for side-by-side ones in a single list).
+    if (this.input.consume('right')) { this.index = (this.index + 1) % n; moved = true; }
+    if (this.input.consume('left')) { this.index = (this.index - 1 + n) % n; moved = true; }
     if (moved) this.refresh();
     if (this.input.consume('confirm')) this.buttons[this.index].press();
   }

@@ -101,6 +101,22 @@ class PlanetSurface implements Backdrop {
         });
         this.baseFrequency = 90;
         break;
+      case 'rain':
+        e = scene.add.particles(0, 0, TEX.pixel, {
+          x: { min: 0, max: GAME_WIDTH + 200 },
+          y: -10,
+          speedY: { min: 700, max: 900 },
+          speedX: { min: -160, max: -120 },
+          scaleX: 0.25,
+          scaleY: { min: 2.5, max: 4 },
+          rotate: 10,
+          alpha: { min: 0.25, max: 0.5 },
+          tint: 0xbfe6ff,
+          lifespan: 1200,
+          frequency: 25,
+        });
+        this.baseFrequency = 25;
+        break;
       default:
         return null;
     }

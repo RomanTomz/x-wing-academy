@@ -3,7 +3,7 @@ import { generateQuestion, isValidQuestion } from '../src/education/questionGene
 import { createRng } from '../src/education/rng';
 import { firstStageOfTier, lastStageOfTier } from '../src/education/stages';
 import { ALL_TOPICS, type TopicId } from '../src/education/types';
-import { BOSS_HITS, BOSSES, defaultCampaign, isPlanetUnlocked, LEVELS } from '../src/progression/campaign';
+import { BOSS_HITS, bossesFor, bossHits, BOSSES, chainFor, defaultCampaign, isPlanetUnlocked, LEVELS, planetById } from '../src/progression/campaign';
 import { Mission } from '../src/progression/mission';
 import { GameStore, MemoryStorage } from '../src/persistence/gameStore';
 import { sanitizeSave } from '../src/persistence/saveData';
@@ -105,7 +105,67 @@ describe('boss battles', () => {
     expect(won.profile.equipped.paint).toBe('paint-destroyer');
   });
 
-  it('every boss sits after a real planet', () => {
-    for (const b of BOSSES) expect(b.unlockAfter).toBeDefined();
+  it('every boss sits after a real planet on its own side', () => {
+    for (const b of BOSSES) {
+      expect(b.unlockAfter).toBeDefined();
+      expect(planetById(b.unlockAfter ?? '')?.faction).toBe(b.faction);
+    }
   });
+
+  it('each career ends with one final boss after its last planet', () => {
+    for (const f of ['rebel', 'empire'] as const) {
+      const finals = bossesFor(f).filter((b) => b.final);
+      expect(finals).toHaveLength(1);
+      const chain = chainFor(f);
+      expect(finals[0].unlockAfter).toBe(chain[chain.length - 1].id);
+      expect(finals[0].finalTopic).toBeDefined();
+      expect(bossHits(finals[0])).toBe(BOSS_HITS + 1);
+    }
+    expect(bossHits(planetById('star-destroyer')!)).toBe(BOSS_HITS);
+  });
+
+  it('the Death Star waits until Forest Moon is won', () => {
+    const c = defaultCampaign();
+    for (const id of ['training-moon', 'frost-planet', 'dune-world'] as const) c[id].cleared[0] = true;
+    expect(isPlanetUnlocked(c, 'death-star', false)).toBe(false);
+    c['forest-moon'].cleared[1] = true;
+    expect(isPlanetUnlocked(c, 'death-star', false)).toBe(true);
+    expect(isPlanetUnlocked(c, 'rebel-flagship', false)).toBe(false);
+  });
+
+  it('every boss has a prize, and beating each one awards it', () => {
+    const store = new GameStore(new MemoryStorage());
+    const prizes: Record<string, string> = {
+      'star-destroyer': 'paint-destroyer',
+      'death-star': 'trail-hyperspace',
+      'hoth-generator': 'laser-ion',
+      'rebel-flagship': 'paint-dark',
+    };
+    for (const b of BOSSES) {
+      const r = store.completeMission(500, { planetId: b.id, level: 1 });
+      expect(r.newUnlocks.map((u) => u.id)).toContain(prizes[b.id]);
+    }
+  });
+});
+
+describe('final boss questions', () => {
+  // Final bosses start at the top stage of the chosen level and mix the career's topics.
+  for (const boss of BOSSES.filter((b) => b.final)) {
+    for (const level of LEVELS) {
+      it(`${boss.name} / level ${level}: hard mixed questions and a valid final question`, () => {
+        const rng = createRng(boss.id.length * 31 + level);
+        for (let stage = firstStageOfTier(level); stage <= lastStageOfTier(level); stage++) {
+          for (let i = 0; i < 300; i++) {
+            const q = generateQuestion({ stage, enabledTopics: none, rng, topicPool: boss.topics });
+            expect(isValidQuestion(q)).toBe(true);
+            expect(boss.topics).toContain(q.topic);
+            const last = generateQuestion({ stage, enabledTopics: none, rng, topicPool: [boss.finalTopic!] });
+            expect(isValidQuestion(last)).toBe(true);
+            expect(last.topic).toBe(boss.finalTopic);
+            expect(last.answer).toBeGreaterThanOrEqual(0);
+          }
+        }
+      });
+    }
+  }
 });

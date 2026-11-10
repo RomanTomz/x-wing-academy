@@ -6,8 +6,11 @@ import { COLORS, FONTS } from '../core/constants';
 export type EnemyPattern = 'sway' | 'figure8' | 'bob' | 'fixed';
 export type EnemyState = 'arriving' | 'active' | 'leaving' | 'dead';
 
-/** What the target ships look like: enemy fighters normally, X-wings when the player flies a TIE. */
-export type EnemyLook = 'tie' | 'xwing' | 'turret';
+/**
+ * What a target looks like: enemy fighters normally, X-wings when the player flies
+ * a TIE, and boss parts (turrets, the exhaust port, a shield dome) in boss battles.
+ */
+export type EnemyLook = 'tie' | 'xwing' | 'turret' | 'rebel-turret' | 'port' | 'reactor';
 
 interface LookDef {
   texture: () => string;
@@ -16,13 +19,18 @@ interface LookDef {
   eye: boolean;
   /** Ships fly in and away; boss turrets rise out of the hull and sink back. */
   motion?: 'fly' | 'rise';
+  /** Gun turrets turn to track the action; ports and domes stay still. */
+  swivel?: boolean;
 }
 
 const LOOKS: Record<EnemyLook, LookDef> = {
   tie: { texture: () => TEX.enemy, scale: 2.6, angle: 0, eye: true },
   // Nose pointing down the screen, towards the player.
   xwing: { texture: () => TEX.ship('paint-red', 'x-wing'), scale: 2.5, angle: 180, eye: false },
-  turret: { texture: () => BOSS_TEX.turret, scale: 3, angle: 0, eye: false, motion: 'rise' },
+  turret: { texture: () => BOSS_TEX.turret, scale: 3, angle: 0, eye: false, motion: 'rise', swivel: true },
+  'rebel-turret': { texture: () => BOSS_TEX.rebelTurret, scale: 3, angle: 0, eye: false, motion: 'rise', swivel: true },
+  port: { texture: () => BOSS_TEX.port, scale: 2.6, angle: 0, eye: false, motion: 'rise' },
+  reactor: { texture: () => BOSS_TEX.reactor, scale: 3, angle: 0, eye: false, motion: 'rise' },
 };
 
 /** Generous hit box (half-width) so aiming is forgiving — the challenge is the maths. */
@@ -65,6 +73,7 @@ export class Enemy {
   private locked = false;
   private baseAngle: number;
   private motion: 'fly' | 'rise';
+  private swivel: boolean;
 
   constructor(scene: Phaser.Scene, o: EnemyOptions) {
     this.scene = scene;
@@ -76,6 +85,7 @@ export class Enemy {
     this.phase = Math.random() * Math.PI * 2;
     const look = LOOKS[o.look ?? 'tie'];
     this.motion = look.motion ?? 'fly';
+    this.swivel = look.swivel ?? false;
     this.baseAngle = Phaser.Math.DegToRad(look.angle);
 
     this.shield = scene.add.image(0, 0, TEX.shield).setScale(1.05).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
@@ -143,6 +153,11 @@ export class Enemy {
         if (this.state === 'arriving') this.state = 'active';
       },
     });
+  }
+
+  /** Turrets and ports are part of the boss, so they leave scorch marks; fighters don't. */
+  get onHull(): boolean {
+    return this.motion === 'rise';
   }
 
   get x(): number {
@@ -219,7 +234,7 @@ export class Enemy {
         break;
       case 'fixed':
         // Turrets swivel a little towards the action instead of moving.
-        this.ship.setRotation(this.baseAngle + Math.sin(t * 1.3) * 0.25);
+        if (this.swivel) this.ship.setRotation(this.baseAngle + Math.sin(t * 1.3) * 0.25);
         this.container.y = this.homeY - this.knock;
         this.knock *= Math.pow(0.02, dt / 1000);
         return;

@@ -126,15 +126,20 @@ function showSettings(root: HTMLElement, close: () => void): void {
   // --- Galaxy map.
   const galaxy = section(card, 'Galaxy map');
   galaxy.append(
-    el('p', { class: 'note' }, 'Each planet practises one skill and has Cadet, Pilot and Ace levels. The TIE Academy (always open) practises comparing with < > =, tens and ones, halves/quarters/thirds and odd & even. Planets unlock one by one when any level of the previous planet is won. If adaptive difficulty is off, only the level chosen above can be played.'),
+    el(
+      'p',
+      { class: 'note' },
+      'There are two careers. Rebels: number bonds, adding and taking away, missing numbers and counting patterns. Empire (flying a TIE): comparing with < = >, tens and ones, odd and even, and halves and quarters. Each planet practises one skill and has Cadet, Pilot and Ace levels, and planets unlock one by one when any level of the previous planet is won. Boss battles open along the way, and each career ends with a final boss that mixes everything at the top of the chosen level. If adaptive difficulty is off, only the level chosen above can be played.',
+    ),
     checkbox('Open all planets now (skip unlocking)', s.unlockAllPlanets, (v) => store.updateSettings({ unlockAllPlanets: v })),
   );
   const planetList = el('ul', { class: 'stats' });
   for (const p of ALL_PLANETS) {
+    const side = p.faction === 'rebel' ? 'Rebels' : 'Empire';
     const cleared = data.profile.campaign[p.id].cleared;
     const won = ([1, 2, 3] as const).filter((l) => cleared[l - 1]).map((l) => LEVEL_NAMES[l]);
     const li = el('li');
-    li.append(el('span', {}, `${p.name} (${p.focus})`), el('strong', {}, won.length ? `★ ${won.join(', ')}` : store.isPlanetUnlocked(p.id) ? 'Open' : 'Locked'));
+    li.append(el('span', {}, `${side}: ${p.name} (${p.focus})`), el('strong', {}, won.length ? `★ ${won.join(', ')}` : store.isPlanetUnlocked(p.id) ? 'Open' : 'Locked'));
     planetList.append(li);
   }
   galaxy.append(planetList);
@@ -144,7 +149,7 @@ function showSettings(root: HTMLElement, close: () => void): void {
   const grid = el('div', { class: 'topic-grid' });
   for (const t of ALL_TOPICS) {
     const tiers = ([1, 2, 3] as Tier[]).filter((tier) => TIER_TOPICS[tier].includes(t)).map((tier) => TIER_NAMES[tier]);
-    if (tiers.length === 0) continue; // TIE Academy topics aren't part of Quick Missions.
+    if (tiers.length === 0) continue; // Empire and boss topics aren't part of Quick Missions.
     grid.append(
       checkbox(`${TOPIC_NAMES[t]} — ${tiers.join(', ')}`, s.topics[t], (v) => {
         store.updateSettings({ topics: { ...store.settings.topics, [t]: v } });

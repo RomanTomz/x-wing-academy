@@ -1,8 +1,8 @@
 import { clampStage } from '../education/stages';
 import { ALL_TOPICS, type TopicId } from '../education/types';
 import { defaultSettings, sanitizeSettings, type ParentSettings } from '../settings/settings';
-import { isUnlocked, unlockById, type UnlockKind } from '../progression/unlocks';
-import { ALL_PLANETS, beatenBosses, defaultCampaign, type CampaignProgress } from '../progression/campaign';
+import { isShipFor, isUnlocked, unlockById, type UnlockKind } from '../progression/unlocks';
+import { ALL_PLANETS, beatenBosses, defaultCampaign, isFaction, type CampaignProgress, type Faction } from '../progression/campaign';
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'xwing-academy.save';
@@ -20,12 +20,30 @@ export interface RecentResult {
   at: number;
 }
 
-export interface Equipped {
+/** What one starfighter looks like and fires: the shape the game draws and flies. */
+export interface Loadout {
   ship: string;
   paint: string;
   laser: string;
   trail: string;
   droid: boolean;
+}
+
+/**
+ * Saved hangar choices. The Rebel fields keep their original names so old saves
+ * load unchanged; the TIE has its own ship, paint and lasers. Engines and the
+ * droid are shared.
+ */
+export interface Equipped extends Loadout {
+  tieShip: string;
+  tiePaint: string;
+  tieLaser: string;
+}
+
+export function loadoutFor(e: Equipped, faction: Faction): Loadout {
+  return faction === 'rebel'
+    ? { ship: e.ship, paint: e.paint, laser: e.laser, trail: e.trail, droid: e.droid }
+    : { ship: e.tieShip, paint: e.tiePaint, laser: e.tieLaser, trail: e.trail, droid: e.droid };
 }
 
 export interface Profile {
@@ -36,6 +54,8 @@ export interface Profile {
   sinceChange: number;
   equipped: Equipped;
   campaign: CampaignProgress;
+  /** Which career the pilot last chose. */
+  faction: Faction;
 }
 
 export interface Stats {
@@ -63,8 +83,18 @@ export function defaultProfile(): Profile {
     stage: 0,
     adaptiveRecent: [],
     sinceChange: 0,
-    equipped: { ship: 'x-wing', paint: 'paint-red', laser: 'laser-red', trail: 'trail-blue', droid: false },
+    equipped: {
+      ship: 'x-wing',
+      paint: 'paint-red',
+      laser: 'laser-red',
+      trail: 'trail-blue',
+      droid: false,
+      tieShip: 'tie-fighter',
+      tiePaint: 'paint-imperial',
+      tieLaser: 'laser-green',
+    },
     campaign: defaultCampaign(),
+    faction: 'rebel',
   };
 }
 
@@ -87,12 +117,16 @@ function sanitizeEquipped(raw: unknown, missions: number, beaten: ReadonlySet<st
   if (!isRecord(raw)) return d;
   const pick = (id: unknown, kind: UnlockKind, fallback: string): string =>
     typeof id === 'string' && unlockById(id)?.kind === kind && isUnlocked(id, missions, beaten) ? id : fallback;
+  const ship = (id: unknown, faction: Faction, fallback: string): string => (typeof id === 'string' && isShipFor(id, faction) ? id : fallback);
   return {
-    ship: pick(raw.ship, 'ship', d.ship),
+    ship: ship(raw.ship, 'rebel', d.ship),
     paint: pick(raw.paint, 'paint', d.paint),
     laser: pick(raw.laser, 'laser', d.laser),
     trail: pick(raw.trail, 'trail', d.trail),
     droid: raw.droid === true && isUnlocked('droid-bip', missions, beaten),
+    tieShip: ship(raw.tieShip, 'empire', d.tieShip),
+    tiePaint: pick(raw.tiePaint, 'paint', d.tiePaint),
+    tieLaser: pick(raw.tieLaser, 'laser', d.tieLaser),
   };
 }
 
@@ -123,6 +157,7 @@ function sanitizeProfile(raw: unknown): Profile {
     sinceChange: count(raw.sinceChange),
     equipped: sanitizeEquipped(raw.equipped, missionsCompleted, beatenBosses(campaign)),
     campaign,
+    faction: isFaction(raw.faction) ? raw.faction : d.faction,
   };
 }
 

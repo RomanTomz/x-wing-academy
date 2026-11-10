@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { unlocksOfKind, type ShipId } from '../progression/unlocks';
 import { createRng } from '../education/rng';
 import { hex, PixelGrid, shade, type Point } from './pixelGrid';
+import { TIE_BUILDERS } from './ties';
 
 /** Display scale for pixel sprites. */
 export const PIXEL_SCALE = 3;
@@ -16,7 +17,6 @@ export const TEX = {
   crystal: 'crystal',
   asteroid: (i: number) => `asteroid-${i}`,
   ship: (paintId: string, shipId: string = 'x-wing') => `ship-${shipId}-${paintId}`,
-  tiePlayer: 'tie-player',
   helmetImperial: 'helmet-imperial',
   laser: (laserId: string) => `bolt-${laserId}`,
   spark: 'spark',
@@ -173,12 +173,12 @@ export function buildBWingGrid(): PixelGrid {
   return g;
 }
 
-/** Original twin-panel enemy fighter, front view. The player's own TIE uses blue accents. */
-export function buildEnemyGrid(variant: 'enemy' | 'player' = 'enemy'): PixelGrid {
-  const RIM = variant === 'player' ? '#b8c2dc' : '#a6b1cc';
+/** Original twin-panel enemy fighter, front view. (The player's TIEs are in ties.ts.) */
+export function buildEnemyGrid(): PixelGrid {
+  const RIM = '#a6b1cc';
   const PANEL = '#262c3d';
   const RIB = '#4c5670';
-  const ACCENT = variant === 'player' ? '#5ab4ff' : '#c35cff';
+  const ACCENT = '#c35cff';
   const g = new PixelGrid(45, 36);
 
   // Wing panel (left), elongated hexagon.
@@ -202,8 +202,8 @@ export function buildEnemyGrid(variant: 'enemy' | 'player' = 'enemy'): PixelGrid
   for (const [dx, dy] of [[0, -4], [4, 0], [0, 4], [-4, 0], [3, -3], [3, 3], [-3, 3], [-3, -3]] as Point[]) {
     g.line(22.5, 18, 22.5 + dx, 18 + dy, '#37405a');
   }
-  g.circle(22.5, 18, 1.8, variant === 'player' ? '#7fe8ff' : '#ff3b5c');
-  g.set(22, 17, variant === 'player' ? '#e0fbff' : '#ffc2cc');
+  g.circle(22.5, 18, 1.8, '#ff3b5c');
+  g.set(22, 17, '#ffc2cc');
 
   g.mirrorX();
   g.outline(OUTLINE);
@@ -397,14 +397,21 @@ function starCanvas(ctx: CanvasRenderingContext2D, size: number, count: number, 
 
 export function generateTextures(scene: Phaser.Scene): void {
   // Ships in every paint job.
-  const ships: Record<ShipId, PixelGrid> = { 'x-wing': buildShipGrid(), 'y-wing': buildYWingGrid(), 'b-wing': buildBWingGrid() };
+  const ships: Record<ShipId, PixelGrid> = {
+    'x-wing': buildShipGrid(),
+    'y-wing': buildYWingGrid(),
+    'b-wing': buildBWingGrid(),
+    'tie-fighter': TIE_BUILDERS['tie-fighter'](),
+    'tie-interceptor': TIE_BUILDERS['tie-interceptor'](),
+    'tie-bomber': TIE_BUILDERS['tie-bomber'](),
+    'tie-advanced': TIE_BUILDERS['tie-advanced'](),
+  };
   for (const [shipId, base] of Object.entries(ships)) {
     for (const paint of unlocksOfKind('paint')) {
       const accent = paint.accent ?? shade(paint.color, 0.6);
       addGrid(scene, TEX.ship(paint.id, shipId), base.clone().replace(PAINT, hex(paint.color)).replace(PAINT_DARK, hex(accent)));
     }
   }
-  addGrid(scene, TEX.tiePlayer, buildEnemyGrid('player'));
   addGrid(scene, TEX.helmetImperial, buildImperialHelmetGrid());
   addGrid(scene, TEX.enemy, buildEnemyGrid());
   addGrid(scene, TEX.droid, buildDroidGrid());

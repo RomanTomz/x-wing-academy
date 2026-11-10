@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Planet, ThemeId } from '../progression/campaign';
-import { duneTerrain, forestTerrain, frostTerrain, hullTerrain, moonTerrain, planetSprite, starGrid, stationSprite } from './terrain';
+import { deathStarTerrain, duneTerrain, forestTerrain, frostTerrain, hullTerrain, moonTerrain, planetSprite, starGrid, stationSprite, tropicTerrain } from './terrain';
 
 export const THEME_TEX = {
   terrain: (t: ThemeId) => `terrain-${t}`,
@@ -19,7 +19,9 @@ export interface Theme {
   overlay: { color: number; alpha: number };
   /** Ground scroll speed (screen px/s). */
   groundSpeed: number;
-  weather: 'none' | 'snow' | 'sand' | 'fireflies' | 'dust';
+  weather: 'none' | 'snow' | 'sand' | 'fireflies' | 'dust' | 'rain';
+  /** What the dodge-or-blast interlude throws at you: rocks, or broken bits of ships. */
+  debris: 'rock' | 'junk';
   asteroidTint: number;
   crystalTint: number;
   crystalName: string;
@@ -31,18 +33,20 @@ export interface Theme {
 export const THEMES: Record<ThemeId | 'space', Theme> = {
   space: {
     id: 'space',
+    debris: 'junk',
     overlay: { color: 0x000000, alpha: 0 },
     groundSpeed: 0,
     weather: 'none',
     asteroidTint: 0xffffff,
     crystalTint: 0xffffff,
     crystalName: 'Collect the crystals!',
-    asteroidName: 'Dodge or blast them!',
-    asteroidHint: 'Asteroids! Dodge them or blast them!',
+    asteroidName: 'Space junk!',
+    asteroidHint: 'Space junk! Dodge it or blast it!',
     music: { transpose: 0, bpm: 112 },
   },
   moon: {
     id: 'moon',
+    debris: 'rock',
     overlay: { color: 0x050814, alpha: 0.3 },
     groundSpeed: 70,
     weather: 'dust',
@@ -55,6 +59,7 @@ export const THEMES: Record<ThemeId | 'space', Theme> = {
   },
   frost: {
     id: 'frost',
+    debris: 'rock',
     overlay: { color: 0x07142a, alpha: 0.38 },
     groundSpeed: 80,
     weather: 'snow',
@@ -67,6 +72,7 @@ export const THEMES: Record<ThemeId | 'space', Theme> = {
   },
   dune: {
     id: 'dune',
+    debris: 'rock',
     overlay: { color: 0x1a0c04, alpha: 0.38 },
     groundSpeed: 90,
     weather: 'sand',
@@ -79,6 +85,7 @@ export const THEMES: Record<ThemeId | 'space', Theme> = {
   },
   forest: {
     id: 'forest',
+    debris: 'rock',
     overlay: { color: 0x020a06, alpha: 0.3 },
     groundSpeed: 75,
     weather: 'fireflies',
@@ -91,6 +98,7 @@ export const THEMES: Record<ThemeId | 'space', Theme> = {
   },
   hull: {
     id: 'hull',
+    debris: 'junk',
     overlay: { color: 0x000000, alpha: 0.2 },
     groundSpeed: 120,
     weather: 'dust',
@@ -100,6 +108,32 @@ export const THEMES: Record<ThemeId | 'space', Theme> = {
     asteroidName: 'Debris field!',
     asteroidHint: 'Space junk! Dodge it or blast it!',
     music: { transpose: -5, bpm: 120 },
+  },
+  tropic: {
+    id: 'tropic',
+    debris: 'rock',
+    overlay: { color: 0x02121c, alpha: 0.36 },
+    groundSpeed: 85,
+    weather: 'rain',
+    asteroidTint: 0xc8b89a,
+    crystalTint: 0xbaffef,
+    crystalName: 'Grab the sea pearls!',
+    asteroidName: 'Tumbling rocks!',
+    asteroidHint: 'Rocks from the cliffs! Dodge them or blast them!',
+    music: { transpose: 3, bpm: 114 },
+  },
+  deathstar: {
+    id: 'deathstar',
+    debris: 'junk',
+    overlay: { color: 0x000000, alpha: 0.32 },
+    groundSpeed: 110,
+    weather: 'none',
+    asteroidTint: 0xffffff,
+    crystalTint: 0xffb060,
+    crystalName: 'Grab the power cells!',
+    asteroidName: 'Space junk!',
+    asteroidHint: 'Space junk! Dodge it or blast it!',
+    music: { transpose: -7, bpm: 126 },
   },
 };
 
@@ -113,7 +147,9 @@ export function generateThemeTextures(scene: Phaser.Scene): void {
   add(THEME_TEX.terrain('dune'), duneTerrain().toCanvas());
   add(THEME_TEX.terrain('forest'), forestTerrain().toCanvas());
   add(THEME_TEX.terrain('hull'), hullTerrain().toCanvas());
+  add(THEME_TEX.terrain('tropic'), tropicTerrain().toCanvas());
+  add(THEME_TEX.terrain('deathstar'), deathStarTerrain().toCanvas());
   add(THEME_TEX.planet('hull'), stationSprite().toCanvas());
-  for (const t of ['moon', 'frost', 'dune', 'forest'] as const) add(THEME_TEX.planet(t), planetSprite(t).toCanvas());
+  for (const t of ['moon', 'frost', 'dune', 'forest', 'tropic'] as const) add(THEME_TEX.planet(t), planetSprite(t).toCanvas());
   add(THEME_TEX.star, starGrid().toCanvas());
 }

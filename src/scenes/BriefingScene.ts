@@ -21,6 +21,13 @@ export const BRIEFINGS: readonly Briefing[] = [
   { title: 'Crystal Quest', text: (n) => `Great news, ${n}! We found energy crystals past the asteroid field. Clear the way and collect them!` },
 ];
 
+/** Quick Missions when flying for the Empire. */
+export const EMPIRE_BRIEFINGS: readonly Briefing[] = [
+  { title: 'Rebel Patrol', text: (n) => `Pilot ${n}! Rebel X-wings are flying near the space station. Find the right targets and chase them away!` },
+  { title: 'Asteroid Chase', text: (n) => `Good flying, ${n}! Rebels are hiding behind the asteroids. Solve the puzzles to find them!` },
+  { title: 'Convoy Guard', text: (n) => `Pilot ${n}, guard our supply ships. Rebel fighters are on the way!` },
+];
+
 /** Animated mission introduction with a Mission Control transmission. */
 export class BriefingScene extends Phaser.Scene {
   private starfield!: Starfield;
@@ -53,21 +60,21 @@ export class BriefingScene extends Phaser.Scene {
     this.input2 = new InputController(this);
     this.cameras.main.fadeIn(400, 0, 0, 0);
 
-    const index = store.data.profile.missionsCompleted % BRIEFINGS.length;
-    const briefing = BRIEFINGS[index];
+    const quickList = store.faction === 'empire' ? EMPIRE_BRIEFINGS : BRIEFINGS;
+    const briefing = quickList[store.data.profile.missionsCompleted % quickList.length];
     const level = this.config.mode === 'campaign' ? this.config.level : 1;
     this.fullText = planet ? planet.briefing(store.settings.pilotName, level) : briefing.text(store.settings.pilotName);
     const heading = planet ? planet.name : briefing.title;
     const subheading = planet ? `${LEVEL_NAMES[level].toUpperCase()} LEVEL • ${planet.levelInfo[level].toUpperCase()}` : `MISSION ${store.data.profile.missionsCompleted + 1}`;
 
-    const empire = planet?.faction === 'empire';
-    // Fleet scene: your squadron (Rebel ships, or TIEs at the TIE Academy) and the targets.
+    const empire = (planet?.faction ?? store.faction) === 'empire';
+    // Fleet scene: your squadron (Rebel ships, or TIEs for the Empire) and the targets.
     this.cruiser = this.add.image(-300, 300, TEX.cruiser).setScale(PIXEL_SCALE).setDepth(2).setVisible(!empire);
     this.tweens.add({ targets: this.cruiser, x: 380, duration: 3000, ease: 'Cubic.easeOut' });
     for (let i = 0; i < 3; i++) {
       const s = empire
-        ? this.add.image(-100 - i * 80, 200 + i * 70, TEX.tiePlayer).setScale(1.1).setDepth(3)
-        : this.add.image(-100 - i * 80, 200 + i * 70, shipTexture(store.data.profile.equipped)).setScale(1.5).setAngle(90).setDepth(3);
+        ? this.add.image(-100 - i * 80, 200 + i * 70, shipTexture(store.loadout('empire'))).setScale(1.1).setDepth(3)
+        : this.add.image(-100 - i * 80, 200 + i * 70, shipTexture(store.loadout('rebel'))).setScale(1.5).setAngle(90).setDepth(3);
       this.tweens.add({ targets: s, x: 700 + i * 50, duration: 3400 + i * 300, ease: 'Cubic.easeOut' });
       this.tweens.add({ targets: s, y: s.y + 10, duration: 1200 + i * 200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
@@ -134,8 +141,8 @@ export class BriefingScene extends Phaser.Scene {
     this.input2.update();
     if (this.input2.consume('back')) {
       speech.cancel();
-      const back = this.config.mode === 'quick' ? SCENES.menu : this.config.planetId === 'tie-academy' ? SCENES.tieAcademy : SCENES.map;
-      this.scene.start(back);
+      if (this.config.mode === 'quick') this.scene.start(SCENES.menu);
+      else this.scene.start(SCENES.map, { faction: planetById(this.config.planetId)?.faction ?? store.faction });
       return;
     }
     this.nav.update();

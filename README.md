@@ -43,9 +43,13 @@ npm start          # starts the game and opens http://localhost:5173
 
 The game also pauses itself when the browser window loses focus.
 
-### Galaxy Map (campaign)
+### Choose your side: two careers
+
+On the title screen, pick **REBELS** or **EMPIRE**. Each side has its own map, four planets, boss battles and a final boss, and they practise different Year 2 maths. The game remembers the last side chosen, and you can switch any time.
 
 Each planet practises one Year 2 skill and has its own scenery, weather and music. The pilot picks a planet, then a level: **Cadet**, **Pilot** or **Ace**. Each level won earns a ⭐ for that planet, up to 3.
+
+**Rebels (Galaxy Map)**: fly an X-wing, Y-wing or B-wing against TIE fighters.
 
 | Planet | Skill | Cadet | Pilot | Ace |
 | --- | --- | --- | --- | --- |
@@ -54,36 +58,42 @@ Each planet practises one Year 2 skill and has its own scenery, weather and musi
 | Dune World | Missing numbers | within 10 | within 20 | within 100 |
 | Forest Moon | Counting patterns | 1s, 2s, 10s | 2s, 5s, 10s | 3s too, and backwards |
 
-- Planets **unlock one by one**. Winning any level of a planet opens the next one, so nobody gets stuck, and the stars give a reason to go back for the harder levels.
+**Empire (Imperial Map)**: fly a TIE fighter. X-wings carry the answers.
+
+| Planet | Skill | Cadet | Pilot | Ace |
+| --- | --- | --- | --- | --- |
+| TIE Academy | Comparing with < = > (`47 ? 74`, `70 + 9 ? 97` at Ace) | to 20 | to 50 | to 100 |
+| Jedha | Tens and ones (base-ten blocks, `47 = 40 + ?`) | teen numbers | to 50 | to 100 |
+| Yavin 4 | Odd and even ("Shoot the EVEN number!") | to 20 | to 50 | to 100 |
+| Scarif | Halves and quarters | doubles, ½ | ½ and ¼ | ½, ¼, ¾ and ⅓ |
+
+- Planets **unlock one by one** within each side. Winning any level of a planet opens the next one, so nobody gets stuck, and the stars give a reason to go back for the harder levels.
 - Within a planet level, difficulty still adjusts gently, but it never leaves that level and doesn't affect Quick Mission difficulty.
 - Parents can open every planet at once, and with adaptive difficulty off, only the chosen level can be played.
 
-**Quick Mission** on the title screen is the original mixed-practice mission in open space. It uses the parent's topic choices and the adaptive ladder.
+**Quick Mission** on the title screen is the original mixed-practice mission in open space, flown for whichever side was chosen last. It uses the parent's topic choices and the adaptive ladder.
 
 ### Boss battles
 
-Boss battles sit on the map between planets. A boss opens once the planet before it has been won, and it never blocks the next planet. Each boss is one continuous fight against a giant enemy with its own Year 2 topic:
+A mid-career boss sits on the route between the first two planets and opens once the planet before it has been won. It never blocks the next planet. Each career ends with a **final boss** after its last planet. Final bosses mix every skill of that career, start at the top of the chosen level, and end with one decisive question: the right answer fires a torpedo.
 
-| Boss | Opens after | Maths | How it plays |
-| --- | --- | --- | --- |
-| **Star Destroyer** | Training Moon | × and ÷ facts for 2, 5 and 10 (Cadet: ×2 and ×10 · Pilot: × and ÷ · Ace: `? × 5 = 35`, "How many 5s in 30?") | Fly over its deck. Turbolaser turrets rise carrying answers, and 7 right answers bring it down in a chain of explosions. Its slow green bolts only nudge your ship |
+| Boss | Side | Opens after | Maths | How it plays |
+| --- | --- | --- | --- | --- |
+| **Star Destroyer** | Rebels | Training Moon | × and ÷ for 2, 5 and 10 | Fly over its deck. Turbolaser turrets rise carrying answers, and 7 hits bring it down |
+| **Death Star** (final) | Rebels | Forest Moon | Everything, plus × and ÷; last question is two-step (`12 + 5 − 3`) | Skim the surface: a cannon on each side and a TIE fighter in the middle carry the answers. Then dive into the trench and hit the right exhaust port with the proton torpedo |
+| **Hoth Shield Generator** | Empire | TIE Academy | < = >, tens & ones, halves, odd & even | Over the snow towards the generator dome. Its defence turrets carry the answers |
+| **Rebel Flagship** (final) | Empire | Scarif | Everything, plus × and ÷; last question is tens and ones | A cannon on each side and an X-wing in the middle. The last question puts three shield domes on the hull, and the right one takes the torpedo |
 
-Beating a boss (any level) wins a special prize, such as the **Destroyer Hunter** paint for the Star Destroyer. More bosses (AT-AT walkers on Hoth, a trench run, and three TIE Academy bosses) are on the roadmap.
-
-### TIE Academy (fly for the other side)
-
-Pick **TIE ACADEMY** on the title screen to fly a TIE fighter. X-wings carry the answers, you fly over a space-station hull, and the maths covers different Year 2 topics. It's always open and has its own Cadet / Pilot / Ace stars (numbers to 20 / 50 / 100):
-
-| Topic | What it looks like |
-| --- | --- |
-| Comparing numbers | `47 ? 74`: shoot the **<**, **>** or **=** target. Includes reversed digits, and `70 + 9 ? 97` at Ace |
-| Tens and ones | Count base-ten blocks drawn in the panel, "3 tens and 4 ones", "How many tens in 47?", `47 = 40 + ?` |
-| Fractions & doubles | Double 8, ½ of 14, ¼ of 12, and at Ace ¾ and ⅓ of a number |
-| Odd and even | "Shoot the EVEN number!" |
+Bosses fire slow bolts that only nudge your ship, so there's still no way to lose. Beating a boss (any level) wins a prize: **Destroyer Hunter** paint, **Hyperspace Streak** engines (Death Star), **Ion Blue** lasers (Hoth) and **Dark Lord Black** paint (Flagship).
 
 ### Choosing a starfighter
 
-In the **Hangar**, pick an **X-Wing** (quick, four alternating cannons), **Y-Wing** (big blasts, twin nose cannons) or **B-Wing** (three cannons at once). All three are available from the start, and every paint job works on every ship. The ships are original pixel art inspired by those silhouettes.
+In the **Hangar**, the tabs at the top switch between the Rebel ship and the TIE. Each side keeps its own ship, paint and lasers, and the two share engines and the droid.
+
+- **Rebels**: **X-Wing** (quick, four alternating cannons), **Y-Wing** (big blasts) or **B-Wing** (three cannons at once).
+- **Empire**: **TIE Fighter** (quick, twin cannons), **TIE Interceptor** (fastest, wingtip cannons), **TIE Bomber** (slow, huge blasts) or **TIE Advanced** (three cannons at once). TIEs start in Imperial Grey with green lasers.
+
+Every ship is free from the start, and every paint job works on every ship. The ships are original pixel art inspired by those silhouettes.
 
 ### A mission
 
@@ -91,14 +101,14 @@ In the **Hangar**, pick an **X-Wing** (quick, four alternating cannons), **Y-Win
 2. **Combat**: about 10 questions (5, 10 or 15, set by a parent). Each one sends in three enemy fighters with big numbered plates. A gold lock-on bracket shows which fighter you're lined up with.
    - Right answer: explosion, +100 XP, praise from Mission Control and a cheer from the droid. The other fighters retreat.
    - Wrong answer: its shields flash and that fighter retreats, leaving fewer targets to choose from. The first hint says "too big" or "too small". After a second miss you get a strategy hint, e.g. "Start at 7 and count on 5 more". Nothing is taken away.
-3. **Interludes**: short flying breaks between questions. In the crystal run, crystals are worth +10 XP. In the asteroid field you can dodge or blast the rocks for +5 XP, and getting bumped costs nothing.
+3. **Interludes**: short flying breaks between questions. In the crystal run, crystals are worth +10 XP. In the debris field you dodge or blast whatever is falling (+5 XP each): rocks and icebergs over planets, space junk such as broken panels, wings, droid heads and cargo crates out in space. Getting bumped costs nothing.
 4. **Debrief**: targets found, first-shot accuracy, crystals, XP tally, rank progress, a promotion when earned, and a reward reveal.
 
 ### Progression (deterministic, no grinding)
 
 - **Ranks** by total XP: Recruit → Wingmate (1,000) → Flight Officer → Sky Captain → Flight Lieutenant → Wing Commander → Star Captain → Galaxy Hero (20,000). A typical 10-question mission earns about 1,200–1,300 XP.
 - **Rewards**: one per mission for the first ten missions, given in a fixed order:
-  1 BIP-8 droid buddy · 2 Blaze Orange paint · 3 Emerald lasers · 4 Nova Blue · 5 Rainbow engines · 6 Nebula Purple · 7 Golden lasers · 8 Forest Moon Green · 9 Comet Fire engines · 10 Gold Leader paint.
+  1 BIP-8 droid buddy · 2 Blaze Orange paint · 3 Twin Ion White engines · 4 Nova Blue · 5 Rainbow engines · 6 Nebula Purple · 7 Golden lasers · 8 Forest Moon Green · 9 Comet Fire engines · 10 Gold Leader paint.
 - Rewards are equipped in the **Hangar**.
 
 There are no loot boxes, streaks, timers, adverts or rankings against other children.
@@ -143,9 +153,9 @@ src/
   input/                  Keyboard + mouse + Gamepad API → game actions
   art/                    Procedural pixel art (PixelGrid rasteriser), tileable planet terrain, themes
   entities/               Player, Enemy, Droid
-  scenes/                 Boot, Menu, GalaxyMap, TieAcademy, Briefing, Mission (+ Interlude, StarDestroyerBattle), Pause, Complete, Hangar
+  scenes/                 Boot, Menu, GalaxyMap, Briefing, Mission (+ Interlude, mission/bosses/*), Pause, Complete, Hangar
   ui/                     HUD, buttons and menu navigation, effects, starfield, parent panel (HTML)
-tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign, TIE Academy, bosses
+tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign, Empire career and ships, bosses
 ```
 
 The folders marked PURE never import Phaser, so they run in Node and are fully unit-tested. Randomness comes from an injectable seeded RNG.
@@ -164,8 +174,8 @@ All art is generated at start-up from code: ships are drawn as polygons onto a l
 
 Ideas for future missions (not built yet):
 
-0. **More boss battles**: AT-AT walkers on Hoth (money, flying a snowspeeder), a trench run (telling the time), and TIE Academy bosses: Rebel Frigate (2D/3D shapes), Rebel Ice Base (measurement), Corvette Chase (tally charts & pictograms).
-0. **Galaxy Map Phase 2–3**: Cloud City (×2/×5/×10), Crystal Nebula (tens & ones, comparing numbers), and an Enemy Battle Station boss fight.
+0. **More boss battles with new Year 2 topics**: AT-AT walkers (money, flying a snowspeeder), a time-telling chase, and Empire bosses for 2D/3D shapes, measurement, and tally charts & pictograms.
+0. **More planets**: Cloud City (×2/×5/×10) and more worlds for each side.
 1. **Battle station phonics infiltration**: sneak through corridors by blasting the right letter sounds and blends.
 2. **Jedi logic training**: lightsaber-deflect patterns, sequences and odd-one-out puzzles.
 3. **Asteroid navigation geometry**: steer through shape gates and match 2D/3D shapes.
