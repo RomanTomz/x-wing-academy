@@ -93,9 +93,10 @@ export class CompleteScene extends Phaser.Scene {
     panel(this, 365, 420, 520, 250).setDepth(4);
     const rows: [string, string][] = [
       ['Targets found', `${stats.questionsCompleted} / ${stats.totalQuestions}`],
-      ['First-shot hits', `${stats.firstTryCorrect}  (${Math.round(stats.accuracy * 100)}%)`],
+      ['Sharpshooter', ''],
       ['Crystals collected', `${stats.crystals}`],
     ];
+    this.drawSharpshooter(stats.firstTryLog, 382 + 17);
     rows.forEach(([label, value], i) => {
       const y = 330 + i * 52;
       this.add.text(135, y, label, { fontFamily: FONTS.round, fontStyle: '600', fontSize: '28px', color: COLORS.textDim }).setDepth(5).setAlpha(0);
@@ -161,6 +162,29 @@ export class CompleteScene extends Phaser.Scene {
       }
       // After unlocking a planet, point straight at the map.
       this.nav = new MenuNav(this.input2, buttons, { columns: 4, start: newPlanet ? 1 : 0 });
+    });
+  }
+
+  /** One medal per question: gold for a first-shot hit, dim for got-there-in-the-end. */
+  private drawSharpshooter(log: readonly boolean[], y: number): void {
+    const right = 600;
+    const left = 330;
+    const n = Math.max(1, log.length);
+    const step = Math.min(26, (right - left) / n);
+    const scale = Math.min(1.3, step / 18);
+    log.forEach((hit, i) => {
+      const x = right - (n - 1 - i) * step - 8;
+      const star = this.add.image(x, y, THEME_TEX.star).setScale(0).setDepth(5).setTint(hit ? 0xffffff : 0x3a4560);
+      this.tweens.add({
+        targets: star,
+        scale,
+        duration: 260,
+        delay: 1150 + i * 70,
+        ease: 'Back.easeOut',
+        onStart: () => {
+          if (hit) audio.play('tick');
+        },
+      });
     });
   }
 

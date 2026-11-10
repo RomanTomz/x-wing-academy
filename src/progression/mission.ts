@@ -19,6 +19,8 @@ export interface MissionStats {
   totalAttempts: number;
   /** First-attempt accuracy, 0..1. */
   accuracy: number;
+  /** One entry per answered question, in order: was it hit with the first shot? */
+  firstTryLog: boolean[];
   crystals: number;
   asteroids: number;
   xpEarned: number;
@@ -53,6 +55,7 @@ export class Mission {
   private pendingInterlude = false;
   private finished = false;
   private stats = { completed: 0, firstTry: 0, attempts: 0, crystals: 0, asteroids: 0 };
+  private firstTryLog: boolean[] = [];
 
   /** `interludes: false` for boss battles, which are one continuous fight. */
   constructor(totalQuestions: number, opts: { interludes?: boolean } = {}) {
@@ -104,8 +107,10 @@ export class Mission {
     this.questionOpen = false;
     this.stats.completed++;
     if (firstTry) this.stats.firstTry++;
+    this.firstTryLog.push(firstTry);
     if (this.interludes.includes(this.questionNumber)) this.pendingInterlude = true;
-    return { kind: 'correct', firstTry, xp: XP.correctAnswer };
+    // Every right answer earns full XP; a first-shot hit earns a bonus on top. Nothing is ever taken away.
+    return { kind: 'correct', firstTry, xp: XP.correctAnswer + (firstTry ? XP.sharpshooter : 0) };
   }
 
   collectCrystal(): number {
@@ -126,9 +131,10 @@ export class Mission {
       firstTryCorrect: firstTry,
       totalAttempts: attempts,
       accuracy: completed === 0 ? 0 : firstTry / completed,
+      firstTryLog: [...this.firstTryLog],
       crystals,
       asteroids,
-      xpEarned: missionXp({ correctAnswers: completed, crystals, asteroids, completed: this.finished }),
+      xpEarned: missionXp({ correctAnswers: completed, firstTry, crystals, asteroids, completed: this.finished }),
     };
   }
 }

@@ -99,14 +99,16 @@ Every ship is free from the start, and every paint job works on every ship. The 
 
 1. **Briefing**: Mission Control introduces the mission. Each planet has its own briefing, and Quick Missions rotate through five.
 2. **Combat**: about 10 questions (5, 10 or 15, set by a parent). Each one sends in three enemy fighters with big numbered plates. A gold lock-on bracket shows which fighter you're lined up with.
-   - Right answer: explosion, +100 XP, praise from Mission Control and a cheer from the droid. The other fighters retreat.
-   - Wrong answer: its shields flash and that fighter retreats, leaving fewer targets to choose from. The first hint says "too big" or "too small". After a second miss you get a strategy hint, e.g. "Start at 7 and count on 5 more". Nothing is taken away.
+   - **Think time**: the targets arrive with their shields up while the question is read aloud (1.5–3 seconds). Shots bounce off harmlessly and don't count, so reading first beats spraying shots.
+   - Right answer: explosion, +100 XP, praise from Mission Control and a cheer from the droid. The other fighters retreat. Right with the **first shot**: a **Sharpshooter!** bonus of +50 XP, and three in a row is a hat-trick.
+   - Wrong answer: its shields flash and that fighter retreats, and the others shield up for a moment while the hint shows. Nothing is taken away.
+   - **Picture hints**: after a miss, a picture of the method appears under the hint, using the pictures Year 2 classrooms use: number lines (count on, or jump the tens then the ones), ten-frames for number bonds, part-whole bars for missing numbers, dot arrays for times tables, sharing into groups for division, base-ten blocks for tens and ones and for comparing, fraction bars, and pairs for odd and even. The first miss shows the set-up with a "?"; the second plays the method out step by step and shows the answer.
 3. **Interludes**: short flying breaks between questions. In the crystal run, crystals are worth +10 XP. In the debris field you dodge or blast whatever is falling (+5 XP each): rocks and icebergs over planets, space junk such as broken panels, wings, droid heads and cargo crates out in space. Getting bumped costs nothing.
-4. **Debrief**: targets found, first-shot accuracy, crystals, XP tally, rank progress, a promotion when earned, and a reward reveal.
+4. **Debrief**: targets found, a Sharpshooter medal for each question (gold if it was hit with the first shot), crystals, XP tally, rank progress, a promotion when earned, and a reward reveal.
 
 ### Progression (deterministic, no grinding)
 
-- **Ranks** by total XP: Recruit → Wingmate (1,000) → Flight Officer → Sky Captain → Flight Lieutenant → Wing Commander → Star Captain → Galaxy Hero (20,000). A typical 10-question mission earns about 1,200–1,300 XP.
+- **Ranks** by total XP: Recruit → Wingmate (1,000) → Flight Officer → Sky Captain → Flight Lieutenant → Wing Commander → Star Captain → Galaxy Hero (20,000). A typical 10-question mission earns about 1,300–1,800 XP, depending on Sharpshooter bonuses.
 - **Rewards**: one per mission for the first ten missions, given in a fixed order:
   1 BIP-8 droid buddy · 2 Blaze Orange paint · 3 Twin Ion White engines · 4 Nova Blue · 5 Rainbow engines · 6 Nebula Purple · 7 Golden lasers · 8 Forest Moon Green · 9 Comet Fire engines · 10 Gold Leader paint.
 - Rewards are equipped in the **Hangar**.
@@ -119,10 +121,11 @@ Click **⚙ Parents** (bottom-right of the title screen) and answer the grown-up
 
 - Change the pilot name.
 - Turn adaptive difficulty on or off, and choose a level: Rookie, Pilot or Squadron Leader. With adaptive on, the level you pick is the starting point. With it off, the game stays inside that level.
+- Set **think time** (how long targets keep their shields up while the question is read): off, short (default) or long.
 - Switch individual maths topics on or off.
 - Set the mission length to 5, 10 or 15 questions.
 - Adjust music and sound-effect volume, mute, and turn speech on or off.
-- See progress: questions answered, correct first time, shots per question, accuracy by topic, recent answers and a difficulty-over-time chart.
+- See progress: questions answered, correct first time, shots per question, accuracy by topic, recent answers and a difficulty-over-time chart. With three targets, guessing is right first time about 1 in 3, so a topic is flagged **"might be guessing"** when its first-time accuracy stays near that after 10 or more questions.
 - Reset progress. This takes two taps and keeps your settings.
 
 Everything is saved in the browser's `localStorage`. Nothing is sent anywhere.
@@ -145,7 +148,7 @@ Everything is saved in the browser's `localStorage`. Nothing is sent anywhere.
 src/
   main.ts                 Bootstrap: fonts, Phaser config, audio unlock
   core/                   Constants and shared services (store, audio, speech)
-  education/              PURE maths logic: generator, distractors, stages, difficulty, seedable RNG
+  education/              PURE maths logic: generator, distractors, stages, difficulty, hint pictures, seedable RNG
   progression/            PURE mission state machine, campaign (planets, unlocking), XP and ranks, unlock table
   persistence/            PURE save schema, validation and migration, GameStore (localStorage)
   settings/               PURE parent settings model and sanitising
@@ -155,7 +158,7 @@ src/
   entities/               Player, Enemy, Droid
   scenes/                 Boot, Menu, GalaxyMap, Briefing, Mission (+ Interlude, mission/bosses/*), Pause, Complete, Hangar
   ui/                     HUD, buttons and menu navigation, effects, starfield, parent panel (HTML)
-tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign, Empire career and ships, bosses
+tests/                    Vitest: questions, difficulty, progression and XP, storage, campaign, Empire career and ships, bosses, think time, hint pictures
 ```
 
 The folders marked PURE never import Phaser, so they run in Node and are fully unit-tested. Randomness comes from an injectable seeded RNG.

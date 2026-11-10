@@ -74,6 +74,8 @@ export class Enemy {
   private baseAngle: number;
   private motion: 'fly' | 'rise';
   private swivel: boolean;
+  /** Shields up during think time: lasers bounce off and don't count as a try. */
+  private guard = false;
 
   constructor(scene: Phaser.Scene, o: EnemyOptions) {
     this.scene = scene;
@@ -167,9 +169,53 @@ export class Enemy {
     return this.container.y;
   }
 
-  /** Can a laser interact with this enemy? */
+  /** Can a laser interact with this enemy? (Arriving targets let shots pass by.) */
   get targetable(): boolean {
-    return this.state === 'active';
+    return this.state === 'active' || (this.guard && this.state === 'arriving');
+  }
+
+  get guarded(): boolean {
+    return this.guard;
+  }
+
+  /** Raise or drop the think-time shield. */
+  setGuard(on: boolean): void {
+    if (on === this.guard || this.state === 'dead' || this.state === 'leaving') {
+      if (!on) this.guard = false;
+      return;
+    }
+    this.guard = on;
+    this.scene.tweens.killTweensOf(this.shield);
+    if (on) {
+      this.shield.setScale(1.05);
+      this.scene.tweens.add({ targets: this.shield, alpha: { from: 0.25, to: 0.55 }, duration: 380, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    } else {
+      // Shields drop with a quick bright flicker.
+      this.scene.tweens.add({ targets: this.shield, alpha: { from: 0.9, to: 0 }, scale: 1.25, duration: 260, ease: 'Quad.easeOut' });
+    }
+  }
+
+  /** Move down to make room for a hint picture (or back up with a negative dy). */
+  lower(dy: number): void {
+    if (this.state === 'dead') return;
+    const proxy = { y: this.homeY };
+    this.scene.tweens.add({
+      targets: proxy,
+      y: this.homeY + dy,
+      duration: 300,
+      ease: 'Quad.easeOut',
+      onUpdate: () => {
+        this.homeY = proxy.y;
+        if (this.state !== 'active') this.container.y = proxy.y;
+      },
+    });
+  }
+
+  /** A shot hit the think-time shield: flash, but nothing else happens. */
+  bounce(): void {
+    if (!this.guard) return;
+    this.knock = 8;
+    this.scene.tweens.add({ targets: this.shield, scale: { from: 1.2, to: 1.05 }, duration: 180, ease: 'Quad.easeOut' });
   }
 
   hitTest(x: number, y: number): boolean {
@@ -250,6 +296,7 @@ export class Enemy {
    * target immediately, so a second laser already in flight can't count twice.
    */
   shieldHitAndRetreat(): void {
+    this.guard = false;
     this.state = 'leaving';
     this.setLocked(false);
     this.container.y -= 18;
@@ -264,6 +311,7 @@ export class Enemy {
   /** The other targets leave once the right answer is found. */
   flyAway(): void {
     if (this.state === 'dead' || this.state === 'leaving') return;
+    this.setGuard(false);
     this.state = 'leaving';
     this.setLocked(false);
     this.retreat();

@@ -67,15 +67,16 @@ describe('mission flow', () => {
     expect(s.accuracy).toBeCloseTo(0.5);
     expect(s.totalAttempts).toBe(15);
     expect(s.crystals).toBe(2);
-    expect(s.xpEarned).toBe(10 * XP.correctAnswer + 2 * XP.crystal + XP.missionComplete);
+    expect(s.xpEarned).toBe(10 * XP.correctAnswer + 5 * XP.sharpshooter + 2 * XP.crystal + XP.missionComplete);
   });
 
-  it('mistakes never reduce XP', () => {
+  it('mistakes never take XP away: they only miss the first-shot bonus', () => {
     const perfect = new Mission(5);
     playMission(perfect);
     const messy = new Mission(5);
     playMission(messy, () => 2);
-    expect(messy.getStats().xpEarned).toBe(perfect.getStats().xpEarned);
+    expect(messy.getStats().xpEarned).toBe(perfect.getStats().xpEarned - 5 * XP.sharpshooter);
+    expect(messy.getStats().xpEarned).toBeGreaterThanOrEqual(5 * XP.correctAnswer + XP.missionComplete);
   });
 
   it('fresh missions start clean', () => {

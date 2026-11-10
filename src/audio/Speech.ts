@@ -29,8 +29,15 @@ export class Speech {
     }
   }
 
-  speak(text: string, opts: { interrupt?: boolean } = {}): void {
-    if (!this.enabled || !this.supported || text.trim() === '') return;
+  /**
+   * Say something. `onEnd` runs when it finishes, or straight away when speech is
+   * off or unavailable (callers use it to know the pilot has heard the question).
+   */
+  speak(text: string, opts: { interrupt?: boolean; onEnd?: () => void } = {}): void {
+    if (!this.enabled || !this.supported || text.trim() === '') {
+      opts.onEnd?.();
+      return;
+    }
     try {
       if (opts.interrupt !== false) speechSynthesis.cancel();
       const spoken = text
@@ -49,9 +56,14 @@ export class Speech {
       u.rate = 0.92;
       u.pitch = 1.05;
       u.volume = 1;
+      if (opts.onEnd) {
+        const done = opts.onEnd;
+        u.onend = () => done();
+        u.onerror = () => done();
+      }
       speechSynthesis.speak(u);
     } catch {
-      /* ignore */
+      opts.onEnd?.();
     }
   }
 

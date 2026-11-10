@@ -12,12 +12,15 @@ import { Mission, type InterludeKind } from '../progression/mission';
 import { rankForXp } from '../progression/xp';
 import { Effects } from '../ui/effects';
 import { Hud } from '../ui/Hud';
+import { HintPictureView } from '../ui/HintPicture';
+import { hintPicture } from '../education/hintPictures';
 import { createBackdrop, type Backdrop } from '../ui/Scenery';
 import { THEMES, type Theme } from '../art/themes';
 import { applyResult, boundsFor, type AdaptiveState } from '../education/difficulty';
 import { firstStageOfTier, lastStageOfTier } from '../education/stages';
 import { bossHits, isMissionConfig, LEVEL_NAMES, planetById, QUICK_MISSION, type Faction, type MissionConfig, type Planet } from '../progression/campaign';
 import { Interlude } from './mission/Interlude';
+import { MISS_BREATHER_MS, shieldsUp } from '../progression/thinkTime';
 import { createBossBattle, type BossBattle } from './mission/bosses';
 
 type Phase = 'intro' | 'active' | 'resolving' | 'interlude' | 'complete';
@@ -26,6 +29,11 @@ const LANES = [250, 640, 1030];
 const PATTERNS: EnemyPattern[] = ['sway', 'figure8', 'bob'];
 const PRAISE = ['Direct hit!', 'Excellent flying!', 'Target destroyed!', 'Great work, pilot!', 'Bullseye!', 'Superb shot!', 'You got it!', 'Amazing!'];
 const RETRY = ['Shields up — it got away! Try another.', 'Not that one — try again!', "It escaped! You've got this.", 'Keep going, pilot!'];
+/** Roughly when the last target has flown (or risen) into place after a question appears. */
+const ARRIVE_MS = 1400;
+/** While a hint picture shows, targets drop this far to make room and the ship stays lower. */
+const PICTURE_DROP = 80;
+const PICTURE_MIN_Y = 530;
 const DURING_QUESTION_MIN_Y = Math.max(PLAYER_MIN_Y, 450);
 const INTERLUDE_MIN_Y = Math.round(GAME_HEIGHT * 0.4);
 
@@ -58,6 +66,11 @@ export class MissionScene extends Phaser.Scene {
   /** Which side the pilot flies for in this mission. */
   private faction: Faction = 'rebel';
   private finalStarted = false;
+  /** Think-time shields: when they went up, and whether the question has been read out. */
+  private guard: { kind: 'think' | 'breather'; since: number } | null = null;
+  private questionSpoken = false;
+  private hintPic!: HintPictureView;
+  private picShown = false;
   private streak = 0;
   private missionXp = 0;
 
@@ -88,6 +101,9 @@ export class MissionScene extends Phaser.Scene {
     this.streak = 0;
     this.missionXp = 0;
     this.droid = null;
+    this.guard = null;
+    this.questionSpoken = false;
+    this.picShown = false;
     this.rng = createRng(Date.now());
     const isBoss = this.planet?.kind === 'boss';
     this.boss = null;
@@ -99,6 +115,7 @@ export class MissionScene extends Phaser.Scene {
     const hudLabel =
       this.config.mode === 'campaign' && this.planet ? `${this.planet.name} • ${LEVEL_NAMES[this.config.level]}` : rankForXp(store.data.profile.totalXp).rank.name;
     this.hud = new Hud(this, hudLabel, { imperial: this.faction === 'empire' });
+    this.hintPic = new HintPictureView(this);
     this.hud.setProgress(0, this.mission.totalQuestions, 0);
     this.hud.setBanner(this.planet ? this.planet.name : 'Mission start', 'Get ready, pilot!');
 
@@ -206,7 +223,13 @@ export class MissionScene extends Phaser.Scene {
     this.player.minY = DURING_QUESTION_MIN_Y;
     this.hud.setQuestion(q);
     this.hud.setProgress(this.mission.currentQuestion - 1, this.mission.totalQuestions, this.mission.currentQuestion);
-    speech.speak(q.spoken);
+    this.questionSpoken = false;
+    speech.speak(q.spoken, {
+      onEnd: () => {
+        // A cancelled earlier question also ends; only count this one.
+        if (this.question?.id === q.id) this.questionSpoken = true;
+      },
+    });
 
     const patterns = this.rng.shuffle(PATTERNS);
     const slots = this.boss?.slots(final);
@@ -227,6 +250,25 @@ export class MissionScene extends Phaser.Scene {
     );
     audio.play('whoosh');
     this.phase = 'active';
+    // Shields up while the pilot reads (and hears) the question.
+    if (store.settings.thinkTime !== 'off') {
+      for (const e of this.enemies) e.setGuard(true);
+      this.guard = { kind: 'think', since: this.time.now + ARRIVE_MS + (final ? 700 : 0) };
+    } else this.guard = null;
+  }
+
+  /** Drop the think-time shields once the pilot has had time to read. */
+  private updateGuard(): void {
+    if (!this.guard || this.phase !== 'active') return;
+    const elapsed = this.time.now - this.guard.since;
+    const up =
+      this.guard.kind === 'think' ? shieldsUp(store.settings.thinkTime, elapsed, this.questionSpoken) : elapsed < MISS_BREATHER_MS;
+    if (up) return;
+    this.guard = null;
+    if (this.enemies.some((e) => e.guarded)) {
+      for (const e of this.enemies) e.setGuard(false);
+      audio.play('beep');
+    }
   }
 
   private startInterlude(kind: InterludeKind): void {
@@ -317,10 +359,16 @@ export class MissionScene extends Phaser.Scene {
       this.wrongCount = result.wrongCount;
       this.streak = 0;
       enemy.shieldHitAndRetreat();
+      // A short breather: the other targets shield up while the hint shows.
+      if (store.settings.thinkTime !== 'off') {
+        for (const e of this.enemies) if (e !== enemy && e.state === 'active') e.setGuard(true);
+        this.guard = { kind: 'breather', since: this.time.now };
+      }
       this.fx.impact(x, y);
       audio.play('shield');
       const hint = hintFor(this.question, enemy.value, this.wrongCount);
       this.hud.showHint(hint);
+      this.showPicture(enemy);
       this.hud.say(this.rng.pick(RETRY));
       speech.speak(hint);
       return;
@@ -349,11 +397,19 @@ export class MissionScene extends Phaser.Scene {
     this.cameras.main.shake(180, 0.006);
     this.cameras.main.flash(120, 255, 240, 200, false);
     this.addXp(result.xp, enemy.x, enemy.y - 40);
-    const praise = this.rng.pick(PRAISE);
-    this.fx.banner(praise.toUpperCase());
-    this.hud.say(this.streak >= 3 ? `${praise} That's ${this.streak} in a row!` : praise);
+    this.guard = null;
+    this.hidePicture();
+    const praise = result.firstTry ? 'Sharpshooter!' : this.rng.pick(PRAISE);
+    this.fx.banner(praise.toUpperCase(), result.firstTry ? '#ffd23f' : '#7fe8ff');
+    if (result.firstTry) {
+      audio.play('crystal');
+      this.fx.sparkle(enemy.x, enemy.y, 40);
+    }
+    const said =
+      this.streak === 3 ? 'Hat-trick! Three sharpshooter hits in a row!' : this.streak > 3 ? `${praise} That's ${this.streak} in a row!` : praise;
+    this.hud.say(said);
     this.hud.clearHint();
-    speech.speak(praise);
+    speech.speak(said);
     this.droid?.cheer();
     if (this.streak > 0 && this.streak % 3 === 0) this.player.roll();
 
@@ -377,6 +433,25 @@ export class MissionScene extends Phaser.Scene {
     this.time.delayedCall(1700, () => this.next());
   }
 
+  /** A picture of the method under the hint: set-up on the first miss, worked through on the second. */
+  private showPicture(shot: Enemy): void {
+    if (!this.question) return;
+    const pic = hintPicture(this.question, shot.value);
+    if (!pic) return;
+    this.hintPic.show(pic, this.wrongCount >= 2);
+    if (!this.picShown) {
+      this.picShown = true;
+      for (const e of this.enemies) if (e !== shot) e.lower(PICTURE_DROP);
+      this.player.minY = PICTURE_MIN_Y;
+    }
+  }
+
+  private hidePicture(): void {
+    this.hintPic.hide();
+    this.picShown = false;
+    this.player.minY = DURING_QUESTION_MIN_Y;
+  }
+
   private addXp(amount: number, x: number, y: number): void {
     this.missionXp += amount;
     this.hud.setXp(this.missionXp);
@@ -390,7 +465,12 @@ export class MissionScene extends Phaser.Scene {
         if (!enemy.targetable || !enemy.hitTest(laser.sprite.x, laser.sprite.y)) continue;
         const { x, y } = laser.sprite;
         this.player.removeLaser(laser);
-        this.onEnemyHit(enemy, x, y);
+        if (enemy.guarded) {
+          // Shields are up: the shot bounces off and doesn't count as a try.
+          enemy.bounce();
+          this.fx.impact(x, y);
+          audio.play('tick');
+        } else this.onEnemyHit(enemy, x, y);
         break;
       }
       // A correct hit ends the question — ignore any other lasers this frame.
@@ -428,6 +508,7 @@ export class MissionScene extends Phaser.Scene {
     this.player.update(dt, this.input2);
     this.droid?.update(dt, this.player.x, this.player.y);
     for (const e of this.enemies) e.update(dt);
+    this.updateGuard();
     this.checkLaserHits();
     this.updateLockOn();
     this.interlude?.update(dt);

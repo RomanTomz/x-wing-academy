@@ -3,6 +3,7 @@ import { stageParams, TIER_TOPICS } from '../education/stages';
 import { ALL_TOPICS, TIER_NAMES, TOPIC_NAMES, type Tier, type TopicId } from '../education/types';
 import { MISSION_LENGTHS, type MissionLength } from '../progression/mission';
 import { rankForXp } from '../progression/xp';
+import { mightBeGuessing, THINK_TIMES, type ThinkTime } from '../progression/thinkTime';
 import { ALL_PLANETS, LEVEL_NAMES } from '../progression/campaign';
 
 /**
@@ -113,6 +114,17 @@ function showSettings(root: HTMLElement, close: () => void): void {
     );
   });
   diff.append(labelled('Level', tierRow));
+  const thinkRow = el('div', { class: 'radio-row', role: 'radiogroup', 'aria-label': 'Think time' });
+  const thinkLabels: Record<ThinkTime, string> = { off: 'Off', short: 'Short', long: 'Long' };
+  for (const t of THINK_TIMES) thinkRow.append(radio('think', thinkLabels[t], s.thinkTime === t, () => store.updateSettings({ thinkTime: t })));
+  diff.append(labelled('Think time', thinkRow));
+  diff.append(
+    el(
+      'p',
+      { class: 'note' },
+      'Think time: targets keep their shields up while the question is read aloud (short: 1.5–3 s, long: 3–5 s), and briefly after a miss, so careful reading beats shooting everything. Hitting the right target with the first shot earns a Sharpshooter bonus.',
+    ),
+  );
   const levelNote = el('p', { class: 'note' });
   diff.append(levelNote);
   const refreshLevel = (): void => {
@@ -222,11 +234,17 @@ function showSettings(root: HTMLElement, close: () => void): void {
     bar.append(fill);
     const acc = el('td');
     acc.append(bar, el('span', {}, pct(ts.firstTryCorrect, ts.attempted)));
+    if (mightBeGuessing(ts)) acc.append(el('span', { class: 'flag', title: 'First-time accuracy is close to the 1-in-3 chance of guessing.' }, 'might be guessing'));
     tr.append(el('td', {}, TOPIC_NAMES[t]), el('td', {}, String(ts.attempted)), acc);
     table.append(tr);
   }
-  if (table.children.length > 1) prog.append(table);
-  else prog.append(el('p', { class: 'note' }, 'No questions answered yet.'));
+  if (table.children.length > 1) {
+    prog.append(table);
+    prog.append(
+      el('p', { class: 'note' }, 'With three targets, guessing alone is right first time about 1 in 3. A topic is flagged when it stays near that after 10 or more questions.'),
+    );
+  }
+  if (table.children.length <= 1) prog.append(el('p', { class: 'note' }, 'No questions answered yet.'));
 
   if (st.recent.length > 0) {
     prog.append(el('h4', {}, `Recent answers (last ${st.recent.length})`));

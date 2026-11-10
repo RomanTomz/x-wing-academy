@@ -1,5 +1,6 @@
 import { ALL_TOPICS, type Tier, type TopicId } from '../education/types';
 import { MISSION_LENGTHS, type MissionLength } from '../progression/mission';
+import { isThinkTime, type ThinkTime } from '../progression/thinkTime';
 
 export interface ParentSettings {
   pilotName: string;
@@ -14,6 +15,8 @@ export interface ParentSettings {
   speech: boolean;
   /** Open every planet on the galaxy map instead of unlocking them one by one. */
   unlockAllPlanets: boolean;
+  /** Targets keep their shields up while the question is read (see thinkTime.ts). */
+  thinkTime: ThinkTime;
 }
 
 export function defaultSettings(): ParentSettings {
@@ -30,6 +33,7 @@ export function defaultSettings(): ParentSettings {
     muted: false,
     speech: true,
     unlockAllPlanets: false,
+    thinkTime: 'short',
   };
 }
 
@@ -68,5 +72,6 @@ export function sanitizeSettings(raw: unknown): ParentSettings {
     muted: typeof raw.muted === 'boolean' ? raw.muted : d.muted,
     speech: typeof raw.speech === 'boolean' ? raw.speech : d.speech,
     unlockAllPlanets: typeof raw.unlockAllPlanets === 'boolean' ? raw.unlockAllPlanets : d.unlockAllPlanets,
+    thinkTime: isThinkTime(raw.thinkTime) ? raw.thinkTime : d.thinkTime,
   };
 }

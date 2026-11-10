@@ -1,5 +1,7 @@
 export const XP = {
   correctAnswer: 100,
+  /** Extra for hitting the right target with the first shot. */
+  sharpshooter: 50,
   crystal: 10,
   asteroid: 5,
   missionComplete: 200,
@@ -42,6 +44,8 @@ export function rankForXp(totalXp: number): RankInfo {
 
 export interface MissionXpInput {
   correctAnswers: number;
+  /** Correct answers hit with the first shot (each earns the sharpshooter bonus). */
+  firstTry?: number;
   crystals: number;
   asteroids: number;
   completed: boolean;
@@ -50,6 +54,7 @@ export interface MissionXpInput {
 export function missionXp(input: MissionXpInput): number {
   return (
     Math.max(0, input.correctAnswers) * XP.correctAnswer +
+    Math.max(0, input.firstTry ?? 0) * XP.sharpshooter +
     Math.max(0, input.crystals) * XP.crystal +
     Math.max(0, input.asteroids) * XP.asteroid +
     (input.completed ? XP.missionComplete : 0)
